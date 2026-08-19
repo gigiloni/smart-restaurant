@@ -1,0 +1,36 @@
+{
+  "name": "@smart-restaurant/source",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "nx run-many -t serve --projects=frontend,backend --parallel=2",
+    "start:frontend": "nx serve frontend",
+    "start:backend": "nx serve backend",
+    "build": "nx run-many -t build",
+    "lint": "nx run-many -t lint",
+    "test": "nx run-many -t test",
+    "format": "nx format:write",
+    "format:check": "nx format:check",
+    "graph": "nx graph"
+  },
+  "private": true,
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.8.0",
+    "@nx/eslint": "23.1.1",
+    "@nx/eslint-plugin": "23.1.1",
+    "@nx/js": "23.1.1",
+    "@nx/workspace": "23.1.1",
+    "@swc/helpers": "~0.5.18",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.8.0",
+    "eslint-config-prettier": "^10.0.0",
+    "nx": "23.1.1",
+    "prettier": "~3.6.2",
+    "tslib": "^2.3.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.58.0"
+  }
+}
