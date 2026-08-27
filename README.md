@@ -1,5 +1,41 @@
 # SmartRestaurant
 
+## Prerequisites
+
+Before setting up the project, install the following tools:
+
+* [Node.js](https://nodejs.org/) 24 or newer
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker through WSL
+
+## Install pnpm
+
+Install the latest Corepack version and use it to enable pnpm 11:
+
+```bash
+npm install -g corepack@latest
+corepack enable
+corepack install --global pnpm@11
+```
+
+Verify the installation:
+
+```bash
+pnpm --version
+```
+
+## Install dependencies
+
+Clone the repository and install all dependencies from the repository root:
+
+```bash
+git clone git@github.com:gigiloni/smart-restaurant.git
+cd smart-restaurant
+pnpm install --frozen-lockfile
+```
+
+The project uses a single pnpm lockfile to ensure that local development and CI install the same dependency versions.
+
+
 <a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
 
 ✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
