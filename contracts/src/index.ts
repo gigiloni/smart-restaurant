@@ -1,1 +1,2 @@
-export * from './lib/orders/orders.contract.js'
+export * from './lib/orders/index.js'
+export * from './lib/tables/index.js'

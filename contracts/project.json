@@ -1,9 +1,17 @@
 {
-  "name": "contracts",
   "$schema": "../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "contracts/src",
+  "name": "contracts",
   "projectType": "library",
-  "tags": [],
-  "// targets": "to see all targets run: nx show project contracts --web",
-  "targets": {}
+  "sourceRoot": "contracts/src",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "contracts/dist",
+        "main": "contracts/src/index.ts",
+        "tsConfig": "contracts/tsconfig.json"
+      }
+    }
+  }
 }

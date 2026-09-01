@@ -35,6 +35,10 @@ pnpm install --frozen-lockfile
 
 The project uses a single pnpm lockfile to ensure that local development and CI install the same dependency versions.
 
+## Start database
+bash``
+docker compose -p smart-restaurant --env-file ./backend/.env up -d
+``
 
 <a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
 
