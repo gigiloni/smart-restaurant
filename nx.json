@@ -27,6 +27,9 @@
       "linter": "eslint",
       "style": "css",
       "unitTestRunner": "none"
+    },
+    "@nx/angular:component": {
+      "style": "css"
     }
   }
 }
