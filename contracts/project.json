@@ -3,10 +3,12 @@
   "name": "contracts",
   "projectType": "library",
   "sourceRoot": "contracts/src",
+
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",
       "outputs": ["{options.outputPath}"],
+
       "options": {
         "outputPath": "contracts/dist",
         "main": "contracts/src/index.ts",

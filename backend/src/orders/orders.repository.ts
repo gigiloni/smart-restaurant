@@ -7,9 +7,9 @@ import type {
 
 import {
   Prisma,
-} from '../../generated/prisma/client.js';
+} from '../generated/prisma/client.js';
 
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../database/prisma.service.js';
 
 const orderDetailsInclude = {
   table: true,

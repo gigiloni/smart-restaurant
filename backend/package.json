@@ -2,7 +2,7 @@
   "name": "@smart-restaurant/backend",
   "private": true,
   "type": "module",
-  "dependencies": {
+  "devDependencies": {
     "@smart-restaurant/contracts": "workspace:*"
   }
 }

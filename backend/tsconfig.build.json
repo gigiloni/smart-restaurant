@@ -1,4 +1,25 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "../dist/backend"
+  },
+
+  "include": [
+    "src/**/*.ts"
+  ],
+
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*.spec.ts"
+  ],
+
+  "references": [
+    {
+      "path": "../contracts"
+    }
+  ]
 }

@@ -11,7 +11,7 @@ import type {
 import {
   OrdersRepository,
   type OrderWithDetails,
-} from './repositories/orders.repository.js';
+} from './orders.repository.js';
 
 @Injectable()
 export class OrdersService {
