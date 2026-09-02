@@ -1,23 +1,21 @@
 import { z } from 'zod';
 
-export const orderInputSchema = z.object({
-  tableId: z
-    .number()
-    .int()
-    .positive(),
+import { createOrderItemSchema } from '../order-items/create-order-item.schema.js';
 
-  employeeId: z
-    .number()
-    .int()
-    .positive()
-    .nullable(),
+export const orderInputSchema = z.object({
+  tableId: z.number().int().positive(),
+
+  employeeId: z.number().int().positive().nullable(),
 });
 
-export const createOrderSchema =
-  orderInputSchema.extend({
-    employeeId:
-      orderInputSchema.shape.employeeId.optional(),
-  });
+/**
+ * An order may be opened empty and filled later through
+ * `/orders/:orderId/items`, or created with its first items in one call.
+ */
+export const createOrderSchema = orderInputSchema.extend({
+  employeeId: orderInputSchema.shape.employeeId.optional(),
 
-export type CreateOrderDto =
-  z.infer<typeof createOrderSchema>;
+  items: z.array(createOrderItemSchema).optional(),
+});
+
+export type CreateOrderDto = z.infer<typeof createOrderSchema>;

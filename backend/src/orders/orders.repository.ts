@@ -55,11 +55,18 @@ export class OrdersRepository {
     });
   }
 
-  async create(
-    dto: CreateOrderDto,
-  ): Promise<OrderWithDetails> {
+  async create({
+    items,
+    ...order
+  }: CreateOrderDto): Promise<OrderWithDetails> {
     return this.prisma.order.create({
-      data: dto,
+      data: {
+        ...order,
+
+        orderItems: items && {
+          create: items,
+        },
+      },
 
       include: orderDetailsInclude,
     });
