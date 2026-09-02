@@ -304,6 +304,31 @@ pnpm exec prisma migrate reset
 
 > **Warning:** This deletes all data in the configured database and reapplies all migrations.
 
+### Load the sample data
+
+`backend/prisma/seed.sql` holds sample data for local development: an Italian
+trattoria with staff, tables, a menu with recipes, and orders spread across the
+kitchen workflow. It covers every enum variant, so each `ProductType`,
+`EmployeeRole` and `OrderItemStatus` value appears in the data.
+
+The file contains data only — apply the migrations first, then load it. With the
+compose stack running, no local `psql` is needed:
+
+```bash
+docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
+  psql -U admin -d smart_restaurant < backend/prisma/seed.sql
+```
+
+With `psql` installed locally, load it directly instead:
+
+```bash
+psql "$DATABASE_URL" -f backend/prisma/seed.sql
+```
+
+Re-running is safe. Every table is truncated first and the identity sequences are
+reset afterwards, so ids stay stable across reloads and the next row the API
+writes does not collide with a seeded id.
+
 ### Read an existing database schema
 
 Update `schema.prisma` based on the current database structure:
@@ -358,6 +383,13 @@ Build the shared contracts:
 
 ```bash
 pnpm nx build contracts
+```
+
+Optionally load the sample data (see [Load the sample data](#load-the-sample-data)):
+
+```bash
+docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
+  psql -U admin -d smart_restaurant < backend/prisma/seed.sql
 ```
 
 Start the backend:
