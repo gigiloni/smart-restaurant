@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,6 +9,7 @@ import type {
   UpdateTableDto,
 } from '@smart-restaurant/contracts';
 
+import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { TablesRepository } from './tables.repository.js';
 
 @Injectable()
@@ -52,6 +54,17 @@ export class TablesService {
   async remove(id: number) {
     await this.findOne(id);
 
-    return this.tablesRepository.remove(id);
+    try {
+      return await this.tablesRepository.remove(id);
+    } catch (error) {
+      // Orders reference their table; those references are not cascaded away.
+      if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation)) {
+        throw new ConflictException(
+          `Table ${id} still has at least one order`,
+        );
+      }
+
+      throw error;
+    }
   }
 }

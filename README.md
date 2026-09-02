@@ -378,6 +378,13 @@ Swagger UI is available at:
 http://localhost:3000/api/docs
 ```
 
+The OpenAPI document is generated from the same Zod schemas the API validates
+against, so it cannot drift from the code. Every operation carries a summary and
+description, its path parameters, a request schema, and a schema per response
+status, including the errors it can return. Side effects are called out on the
+routes that have them — replacing a recipe, cascading deletes, and the
+references that block a delete with `409`.
+
 ---
 
 ## API resources
