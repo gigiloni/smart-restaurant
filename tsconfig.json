@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+
+  "references": [
+    {
+      "path": "./contracts"
+    },
+    {
+      "path": "./backend"
+    }
+  ]
+}

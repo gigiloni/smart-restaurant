@@ -1,0 +1,32 @@
+{
+  "extends": "../tsconfig.base.json",
+
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2023",
+
+    "types": ["node"],
+
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+
+    "esModuleInterop": true,
+
+    "composite": true,
+
+    "strict": true,
+    "skipLibCheck": true
+  },
+
+  "files": [],
+
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "./tsconfig.build.json"
+    }
+  ]
+}

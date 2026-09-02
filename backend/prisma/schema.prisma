@@ -1,0 +1,109 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EmployeeRole {
+  ADMIN
+  SERVICE
+  KITCHEN
+  BAR
+}
+
+enum OrderItemStatus {
+  OPEN
+  IN_PROGRESS
+  READY
+  SERVED
+  REMAKE
+}
+
+enum ProductType {
+  FOOD
+  DRINK
+  APPETIZER
+}
+
+model Employee {
+  id        Int          @id @default(autoincrement()) @map("employee_id")
+  firstname String       @db.VarChar(100)
+  lastname  String       @db.VarChar(100)
+  role      EmployeeRole
+
+  orders Order[]
+
+  @@map("Employee")
+}
+
+model Ingredient {
+  id   Int     @id @default(autoincrement()) @map("ingredient_id")
+  name String? @db.VarChar(100)
+
+  products ProductIngredient[]
+
+  @@map("Ingredient")
+}
+
+model RestaurantTable {
+  id          Int @id @default(autoincrement()) @map("table_id")
+  tableNumber Int @unique @map("table_number")
+  seats       Int @default(0)
+
+  orders Order[]
+
+  @@map("Table")
+}
+
+model Product {
+  id          Int         @id @default(autoincrement()) @map("product_id")
+  description String?     @db.VarChar(100)
+  price       Decimal     @default(0.0)
+  type        ProductType
+  name        String      @db.VarChar(100)
+
+  orderItems  OrderItem[]
+  ingredients ProductIngredient[]
+
+  @@map("Product")
+}
+
+model Order {
+  id         Int  @id @default(autoincrement()) @map("order_id")
+  tableId    Int  @map("table_id")
+  employeeId Int? @map("employee_id")
+
+  table      RestaurantTable @relation(fields: [tableId], references: [id])
+  employee   Employee?       @relation(fields: [employeeId], references: [id])
+  orderItems OrderItem[]
+
+  @@map("Order")
+}
+
+model OrderItem {
+  id        Int             @id @default(autoincrement()) @map("order_item_id")
+  orderId   Int             @map("order_id")
+  productId Int             @map("product_id")
+  status    OrderItemStatus @default(OPEN)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("Order_Item")
+}
+
+model ProductIngredient {
+  productId    Int @map("product_id")
+  ingredientId Int @map("ingredient_id")
+  amount       Int @default(0)
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@id([productId, ingredientId])
+  @@map("Product_Ingredient")
+}

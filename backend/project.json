@@ -1,0 +1,43 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "backend",
+  "projectType": "application",
+  "sourceRoot": "backend/src",
+
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+
+      "dependsOn": [
+        "^build"
+      ],
+
+      "outputs": [
+        "{options.outputPath}"
+      ],
+
+      "options": {
+        "outputPath": "dist/backend",
+        "main": "backend/src/main.ts",
+        "tsConfig": "backend/tsconfig.build.json",
+
+        "assets": [
+          {
+            "input": "backend",
+            "glob": "package.json",
+            "output": "."
+          }
+        ]
+      }
+    },
+
+    "serve": {
+      "executor": "@nx/js:node",
+      "continuous": true,
+
+      "options": {
+        "buildTarget": "backend:build"
+      }
+    }
+  }
+}
