@@ -8,36 +8,68 @@
   --green-accent: #02702C;
   --red-accent: #700204;
   --text: #ffffff;
+
+  .background-col {
+    background-color: var(--background);
+  }
+}
+
+h2, h3, h4, p {
+  font-family: "Cormorant Infant", serif;
+  color: var(--text);
 }
 
 /*   LOGO   */
 h1 {
   font-family: "Passions Conflict", serif;
   font-size: 6rem;
+  line-height: 4rem;
+
+  background: linear-gradient(
+    to right,
+    #009246 0%,
+    #009246 25%,
+    #ffffff 25%,
+    #ffffff 76%,
+    #ce2b37 76%,
+    #ce2b37 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 h2 {
-  font-family: "Cormorant Infant", serif;
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 300;
+  line-height: 1.5rem;
 }
 
 
 /*   HEADER   */
 h3 {
-  font-family: "Cormorant Infant", serif;
   font-size: 6rem;
   font-weight: 400;
 }
 
 h4 {
-  font-family: "Cormorant Infant", serif;
   font-size: 2rem;
   font-weight: 700;
 }
 
 p {
-  font-family: "Cormorant Infant", serif;
   font-size: 1.313rem;
   font-weight: 300;
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 4rem;
+    line-height: 3rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    line-height: 1rem;
+  }
 }
