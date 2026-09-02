@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,6 +9,7 @@ import type {
   UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
+import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import {
   OrdersRepository,
   type OrderWithDetails,
@@ -41,7 +43,11 @@ export class OrdersService {
   async create(
     dto: CreateOrderDto,
   ): Promise<OrderWithDetails> {
-    return this.ordersRepository.create(dto);
+    try {
+      return await this.ordersRepository.create(dto);
+    } catch (error) {
+      throw this.mapUnknownReference(error);
+    }
   }
 
   async update(
@@ -50,10 +56,14 @@ export class OrdersService {
   ): Promise<OrderWithDetails> {
     await this.findOne(id);
 
-    return this.ordersRepository.update(
-      id,
-      dto,
-    );
+    try {
+      return await this.ordersRepository.update(
+        id,
+        dto,
+      );
+    } catch (error) {
+      throw this.mapUnknownReference(error);
+    }
   }
 
   async remove(
@@ -62,5 +72,22 @@ export class OrdersService {
     await this.findOne(id);
 
     return this.ordersRepository.remove(id);
+  }
+
+  /**
+   * An order points at a table, an employee and — through its items — at
+   * products. A missing one of those is a bad payload, not a missing order.
+   */
+  private mapUnknownReference(error: unknown): unknown {
+    if (
+      isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation) ||
+      isPrismaError(error, PrismaErrorCode.RecordNotFound)
+    ) {
+      return new BadRequestException(
+        'One or more of the referenced table, employee or products do not exist',
+      );
+    }
+
+    return error;
   }
 }
