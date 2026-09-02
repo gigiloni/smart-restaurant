@@ -377,4 +377,43 @@ Swagger UI is available at:
 ```text
 http://localhost:3000/api/docs
 ```
+
 ---
+
+## API resources
+
+All routes are served under the `/api` prefix and validated against the Zod
+schemas in the `contracts` library.
+
+| Resource | Routes |
+| --- | --- |
+| Tables | `GET` `POST` `/tables` · `GET` `PATCH` `DELETE` `/tables/:id` |
+| Employees | *not implemented yet* |
+| Products | `GET` `POST` `/products` · `GET` `PATCH` `DELETE` `/products/:id` |
+| Ingredients | `GET` `POST` `/ingredients` · `GET` `PATCH` `DELETE` `/ingredients/:id` |
+| Orders | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id` |
+| Order items | `GET` `POST` `/orders/:orderId/items` · `GET` `PATCH` `DELETE` `/orders/:orderId/items/:id` |
+
+Two entities are deliberately not exposed as standalone resources, because
+neither can exist without its parent:
+
+* **`Product_Ingredient`** is written as part of its product. A product payload
+  carries an optional `ingredients` array of `{ ingredientId, amount }`. Sending
+  `ingredients` on `PATCH /products/:id` replaces the whole recipe; omitting it
+  leaves the recipe untouched.
+* **`Order_Item`** is addressed under the order that owns it. Every route is
+  nested below `/orders/:orderId`, and an item that belongs to a different order
+  returns `404` rather than being readable through the wrong parent. Items can
+  also be created inline via the optional `items` array on `POST /orders`.
+
+### Delete behaviour
+
+Rows that are owned by a parent are removed with it; rows that are merely
+referenced protect their referent:
+
+| Action | Result |
+| --- | --- |
+| Delete an order | its order items are cascaded away |
+| Delete a product | its recipe lines are cascaded away |
+| Delete a product that is on an order | `409 Conflict` |
+| Delete an ingredient used by a product | `409 Conflict` |

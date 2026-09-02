@@ -90,7 +90,7 @@ model OrderItem {
   productId Int             @map("product_id")
   status    OrderItemStatus @default(OPEN)
 
-  order   Order   @relation(fields: [orderId], references: [id])
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
 
   @@map("Order_Item")
@@ -101,7 +101,7 @@ model ProductIngredient {
   ingredientId Int @map("ingredient_id")
   amount       Int @default(0)
 
-  product    Product    @relation(fields: [productId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
   ingredient Ingredient @relation(fields: [ingredientId], references: [id])
 
   @@id([productId, ingredientId])

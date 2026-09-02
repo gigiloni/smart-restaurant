@@ -8,21 +8,15 @@ import {
   Post,
 } from '@nestjs/common';
 
-import { z } from 'zod';
-
 import {
   createOrderSchema,
+  idParamSchema,
   updateOrderSchema,
   type CreateOrderDto,
   type UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
 import { OrdersService } from './orders.service.js';
-
-const orderIdSchema = z.coerce
-  .number()
-  .int()
-  .positive();
 
 @Controller('orders')
 export class OrdersController {
@@ -38,7 +32,7 @@ export class OrdersController {
   @Get(':id')
   findOne(
     @Param('id', {
-      schema: orderIdSchema,
+      schema: idParamSchema,
     })
     id: number,
   ) {
@@ -58,7 +52,7 @@ export class OrdersController {
   @Patch(':id')
   update(
     @Param('id', {
-      schema: orderIdSchema,
+      schema: idParamSchema,
     })
     id: number,
 
@@ -73,7 +67,7 @@ export class OrdersController {
   @Delete(':id')
   remove(
     @Param('id', {
-      schema: orderIdSchema,
+      schema: idParamSchema,
     })
     id: number,
   ) {
