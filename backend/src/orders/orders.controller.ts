@@ -56,7 +56,7 @@ export class OrdersController {
     summary: 'Open an order',
     description:
       'Opens an order on a table, optionally with its first items.\n\n' +
-      '**Side effects:** each entry in `items` writes one `Order_Item` row in the same transaction as the order, so an unknown product id fails the whole request and no order is created. Repeat a `productId` to order more than one of it.\n\n' +
+      '**Side effects:** each entry in `items` writes one `Order_Item` row in the same transaction as the order, so an unknown product id fails the whole request and no order is created. Repeat a `productId` to order more than one of it. Every item starts at `OPEN` and is moved on through `/orders/{orderId}/items/{id}`.\n\n' +
       'An order may also be opened empty and filled later through `/orders/{orderId}/items`.',
   })
   @ApiCreatedResponse({
