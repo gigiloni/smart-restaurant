@@ -1,2 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Infant:ital,wght@0,300..700;1,300..700&family=Passions+Conflict&display=swap');
 @import "tailwindcss";
 @import "tailwindcss-primeui";
+
+:root {
+  --background: #212121;
+  --light-accent: #D9D9D9;
+  --green-accent: #02702C;
+  --red-accent: #700204;
+  --text: #ffffff;
+}
+
+/*   LOGO   */
+h1 {
+  font-family: "Passions Conflict", serif;
+  font-size: 6rem;
+}
+
+h2 {
+  font-family: "Cormorant Infant", serif;
+  font-size: 2.5rem;
+  font-weight: 300;
+}
+
+
+/*   HEADER   */
+h3 {
+  font-family: "Cormorant Infant", serif;
+  font-size: 6rem;
+  font-weight: 400;
+}
+
+h4 {
+  font-family: "Cormorant Infant", serif;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+p {
+  font-family: "Cormorant Infant", serif;
+  font-size: 1.313rem;
+  font-weight: 300;
+}
