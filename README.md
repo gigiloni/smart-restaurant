@@ -173,19 +173,19 @@ pnpm nx graph
 Start the backend:
 
 ```bash
-pnpm nx serve backend
-```
-
-or:
-
-```bash
 pnpm start:backend
 ```
 
-Build the backend:
+To run the Nx target directly after generating the Prisma Client:
 
 ```bash
-pnpm nx build backend
+pnpm nx serve backend
+```
+
+Build all projects (including the backend):
+
+```bash
+pnpm build
 ```
 
 ### Contracts
@@ -246,13 +246,22 @@ cd backend
 
 ### Generate Prisma Client
 
-Generate the Prisma Client:
+From the repository root, generate the Prisma Client with:
+
+```bash
+pnpm db:generate
+```
+
+From the `backend` directory, the equivalent command is:
 
 ```bash
 pnpm exec prisma generate
 ```
 
-Run this command after changing `schema.prisma`.
+`pnpm dev`, `pnpm start:backend`, and `pnpm build` generate the client before
+starting or building. After changing `schema.prisma` while the development
+servers are already running, restart `pnpm dev` so the client is regenerated
+and the backend starts with it.
 
 ### Create a migration
 
@@ -374,9 +383,7 @@ docker compose -p smart-restaurant --env-file ./backend/.env up -d
 Generate the Prisma Client:
 
 ```bash
-cd backend
-pnpm exec prisma generate
-cd ..
+pnpm db:generate
 ```
 
 Build the shared contracts:
@@ -395,7 +402,7 @@ docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
 Start the backend:
 
 ```bash
-pnpm nx serve backend
+pnpm start:backend
 ```
 
 The backend API is available at:
