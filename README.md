@@ -445,6 +445,46 @@ neither can exist without its parent:
   returns `404` rather than being readable through the wrong parent. Items can
   also be created inline via the optional `items` array on `POST /orders`.
 
+### Order item status
+
+Order items travel along a chain, with `REMAKE` off to the side for an item that
+has to be made again:
+
+```text
+OPEN  ──►  IN_PROGRESS  ──►  READY  ──►  SERVED
+```
+
+Not every status may follow every other. `PATCH /orders/{orderId}/items/{id}`
+rejects a move that is not permitted with `409 Conflict`, naming the targets that
+are. Items are always created at `OPEN`.
+
+| Move | Meaning |
+| --- | --- |
+| forward | The next step along the chain. Always permitted. |
+| skip | A forward jump past one or more steps. `DRINK` items only. |
+| undo | Exactly one step back, to correct a mis-tap. Never more than one step. |
+| send-back | `READY` or `SERVED` to `REMAKE`, when an item is rejected. |
+| remake | `REMAKE` to `IN_PROGRESS`, when the kitchen starts the replacement. |
+| keep | `REMAKE` to `SERVED`, when the guest accepts the item after all. |
+| unchanged | Re-sending the current status. Accepted as a no-op, so retries are safe. |
+
+Rows are the current status, columns the requested one:
+
+| from / to | OPEN | IN_PROGRESS | READY | SERVED | REMAKE |
+| --- | --- | --- | --- | --- | --- |
+| OPEN | unchanged | forward | skip *(DRINK)* | skip *(DRINK)* | — |
+| IN_PROGRESS | undo | unchanged | forward | skip *(DRINK)* | — |
+| READY | — | undo | unchanged | forward | send-back |
+| SERVED | — | — | undo | unchanged | send-back |
+| REMAKE | — | remake | — | keep | unchanged |
+
+Drinks need no preparation, so a `DRINK` item may jump forward to any later
+status. Skipping is one-way: `undo` stays a single step back for every product
+type, so a drink that jumped `OPEN` to `SERVED` unwinds one step at a time.
+
+The rules live in `contracts/src/lib/order-items/order-item-transitions.ts`, so
+the frontend can grey out impossible moves from the same source the API enforces.
+
 ### Delete behaviour
 
 Rows that are owned by a parent are removed with it; rows that are merely
