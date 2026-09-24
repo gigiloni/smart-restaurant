@@ -78,7 +78,22 @@ export class OrderItemsService {
       return orderItem;
     }
 
-    return this.orderItemsRepository.update(id, dto);
+    const updated = await this.orderItemsRepository.updateWhenStatusIs(id, orderItem.status, dto);
+
+    // The item moved between the check above and the write. Rather than guess
+    // whether the move is still legal from wherever it landed, report the
+    // current status so the caller can decide against what is actually true.
+    if (updated === null) {
+      const current = await this.orderItemsRepository.findByOrderAndId(orderId, id);
+
+      throw new ConflictException(
+        `Order item ${id} was changed by another request while this one was in flight. ` +
+          `It was ${orderItem.status} and is now ${current?.status ?? 'deleted'}. ` +
+          `Re-read the item and retry against its current status.`,
+      );
+    }
+
+    return updated;
   }
 
   async remove(orderId: number, id: number): Promise<OrderItemWithDetails> {

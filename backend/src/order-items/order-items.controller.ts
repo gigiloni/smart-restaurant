@@ -119,6 +119,8 @@ export class OrderItemsController {
       '**Skipping is deliberately one-way.** `undo` remains a single step back for every product type, so a drink that jumped `OPEN` to `SERVED` unwinds through `READY` and `IN_PROGRESS` rather than returning to `OPEN` in one move. The asymmetry is intended: skipping ahead is a normal part of bar service, while a large rewind is more likely to be a mistake than an intent.\n\n' +
       '### Sending an item back\n\n' +
       'An item can only be rejected once it has been made, so `REMAKE` is reachable from `READY` (spotted at the pass) and `SERVED` (sent back by the guest), never from `OPEN` or `IN_PROGRESS` — an item still being prepared simply stays in preparation. A `REMAKE` resolves in one of two ways: to `IN_PROGRESS` when the kitchen starts the replacement, or to `SERVED` when the guest accepts the item after all.\n\n' +
+      '### Concurrent changes\n\n' +
+      'The permitted move is decided from the status the item has when the request arrives, and the write only lands while it still has that status. If another request moves the item first — the pass and the floor both touching the same ticket — this request is rejected with 409 naming the status the item now has, rather than applying a move that no single transition allows. Re-read the item and retry.\n\n' +
       'The product an item refers to cannot be changed; delete the item and add a new one instead.',
   })
   @ApiIdParam('orderId', 'Id of the order the item belongs to.')
@@ -129,7 +131,7 @@ export class OrderItemsController {
   )
   @ApiEntityNotFoundResponse('The order does not exist, or the item does not belong to it.')
   @ApiEntityConflictResponse(
-    'The requested status may not follow the status the item is currently in. The message names the permitted targets, and says when a move was blocked only because the item is not a DRINK.',
+    'Either the requested status may not follow the status the item is currently in — the message names the permitted targets, and says when a move was blocked only because the item is not a DRINK — or another request changed the item while this one was in flight, in which case the message names the status it now has. Both are safe to retry once the item has been re-read.',
   )
   update(
     @Param('orderId', { schema: idParamSchema }) orderId: number,

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
-import type { CreateOrderItemDto, UpdateOrderItemDto } from '@smart-restaurant/contracts';
+import type {
+  CreateOrderItemDto,
+  OrderItemStatus,
+  UpdateOrderItemDto,
+} from '@smart-restaurant/contracts';
 
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -57,15 +61,41 @@ export class OrderItemsRepository {
     });
   }
 
-  update(id: number, dto: UpdateOrderItemDto): Promise<OrderItemWithDetails> {
-    return this.prisma.orderItem.update({
-      where: {
-        id,
-      },
+  /**
+   * Writes the new status only while the item is still in `expectedStatus`.
+   *
+   * The permitted-transition check runs against the status the service read, so
+   * an unguarded write would apply it even if another request moved the item in
+   * between — producing a change no single transition allows. Matching on the
+   * status makes the check and the write one atomic step, and a `null` return
+   * means the item moved underneath this request.
+   */
+  async updateWhenStatusIs(
+    id: number,
+    expectedStatus: OrderItemStatus,
+    dto: UpdateOrderItemDto,
+  ): Promise<OrderItemWithDetails | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.orderItem.updateMany({
+        where: {
+          id,
+          status: expectedStatus,
+        },
 
-      data: dto,
+        data: dto,
+      });
 
-      include: orderItemDetailsInclude,
+      if (count === 0) {
+        return null;
+      }
+
+      return tx.orderItem.findUnique({
+        where: {
+          id,
+        },
+
+        include: orderItemDetailsInclude,
+      });
     });
   }
 
