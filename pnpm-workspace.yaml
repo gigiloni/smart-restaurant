@@ -11,6 +11,7 @@ allowBuilds:
   workerd: true
   '@nestjs/core': false
   less: true
+  lmdb: true
   '@prisma/engines': true
   prisma: true
   '@scarf/scarf': true

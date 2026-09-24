@@ -45,3 +45,5 @@ Thumbs.db
 .claude/settings.local.json
 backend/.env
 *generated/
+
+.angular
