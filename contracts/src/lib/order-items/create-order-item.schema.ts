@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { positiveInt32Schema } from '../common/integer.schema.js';
+
 import { orderItemStatusSchema } from './order-item-status.schema.js';
 
 /**
@@ -8,7 +10,7 @@ import { orderItemStatusSchema } from './order-item-status.schema.js';
  */
 export const createOrderItemSchema = z
   .object({
-    productId: z.number().int().positive().meta({
+    productId: positiveInt32Schema.meta({
       description: 'Id of an existing product. Unknown ids are rejected with 400.',
       example: 1,
     }),

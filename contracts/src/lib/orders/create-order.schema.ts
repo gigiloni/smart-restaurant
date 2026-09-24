@@ -1,14 +1,16 @@
 import { z } from 'zod';
 
+import { positiveInt32Schema } from '../common/integer.schema.js';
+
 import { createOrderItemSchema } from '../order-items/create-order-item.schema.js';
 
 export const orderInputSchema = z.object({
-  tableId: z.number().int().positive().meta({
+  tableId: positiveInt32Schema.meta({
     description: 'Id of an existing table. Unknown ids are rejected by the database.',
     example: 1,
   }),
 
-  employeeId: z.number().int().positive().nullable().meta({
+  employeeId: positiveInt32Schema.nullable().meta({
     description: 'Id of the employee taking the order. Send `null` for an unassigned order.',
     example: 1,
   }),
