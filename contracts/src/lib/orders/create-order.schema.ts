@@ -24,7 +24,7 @@ export const createOrderSchema = orderInputSchema
 
     items: z.array(createOrderItemSchema).optional().meta({
       description:
-        'Items to open the order with. Created in the same transaction as the order, so an unknown product id fails the whole request and no order is created.',
+        'Items to open the order with. Created in the same transaction as the order, so an unknown product id fails the whole request and no order is created. Every item starts at OPEN.',
     }),
   })
   .meta({
