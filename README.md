@@ -427,7 +427,7 @@ schemas in the `contracts` library.
 | Resource | Routes |
 | --- | --- |
 | Tables | `GET` `POST` `/tables` · `GET` `PATCH` `DELETE` `/tables/:id` |
-| Employees | *not implemented yet* |
+| Employees | `GET` `POST` `/employees` · `GET` `PATCH` `DELETE` `/employees/:id` |
 | Products | `GET` `POST` `/products` · `GET` `PATCH` `DELETE` `/products/:id` |
 | Ingredients | `GET` `POST` `/ingredients` · `GET` `PATCH` `DELETE` `/ingredients/:id` |
 | Orders | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id` |
@@ -456,3 +456,4 @@ referenced protect their referent:
 | Delete a product | its recipe lines are cascaded away |
 | Delete a product that is on an order | `409 Conflict` |
 | Delete an ingredient used by a product | `409 Conflict` |
+| Delete an employee who has taken an order | `409 Conflict` |

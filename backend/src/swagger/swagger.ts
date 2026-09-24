@@ -47,6 +47,7 @@ const API_DESCRIPTION = [
   '| Delete a product | its recipe lines are deleted with it |',
   '| Delete a product that is on an order | 409 Conflict |',
   '| Delete an ingredient used by a recipe | 409 Conflict |',
+  '| Delete an employee who has taken an order | 409 Conflict |',
   '| Delete a table that has orders | 409 Conflict |',
 ].join('\n');
 
@@ -58,6 +59,7 @@ export function setupSwagger(app: INestApplication): void {
     .addTag('Tables', 'Tables guests are seated at.')
     .addTag('Products', 'Menu products and their recipes.')
     .addTag('Ingredients', 'Raw ingredients that products are made from.')
+    .addTag('Employees', 'Members of staff, who may be assigned to the orders they take.')
     .addTag('Orders', 'Orders opened on a table.')
     .addTag(
       'Order items',
