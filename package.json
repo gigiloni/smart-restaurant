@@ -68,6 +68,7 @@
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tslib": "^2.3.0",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.58.0"
+    "typescript-eslint": "^8.58.0",
+    "zod-openapi": "^6.0.2"
   }
 }
