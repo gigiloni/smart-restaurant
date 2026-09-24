@@ -49,6 +49,9 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "defaultConfiguration": "development",
+      "options": {
+        "proxyConfig": "apps/gastro-ui/proxy.conf.json"
+      },
       "configurations": {
         "production": {
           "buildTarget": "gastro-ui:build:production"

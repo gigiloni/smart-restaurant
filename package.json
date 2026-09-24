@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "nx run-many -t serve --projects=backend --parallel=2",
-    "start:frontend": "nx serve frontend",
+    "dev": "nx run-many -t serve --projects=backend,gastro-ui --parallel=2",
+    "start:frontend": "nx serve gastro-ui",
     "start:backend": "nx serve backend",
     "build": "nx run-many -t build",
     "lint": "nx run-many -t lint",
@@ -67,7 +67,7 @@
     "prettier": "~3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tslib": "^2.3.0",
-    "typescript": "~6.0.3",
+    "typescript": "~5.9.3",
     "typescript-eslint": "^8.58.0"
   }
 }
