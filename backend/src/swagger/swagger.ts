@@ -12,6 +12,8 @@ const API_DESCRIPTION = [
   '### Conventions',
   '',
   '- Every route is served under the `/api` prefix.',
+  '- Business routes require a Better Auth session cookie. Sign in at `POST /api/auth/sign-in/email`.',
+  '- Role and ownership checks return 403; missing or expired sessions return 401.',
   '- Request bodies and path parameters are validated against the Zod schemas in the shared',
   '  `@smart-restaurant/contracts` library, so the frontend and the backend agree on one definition.',
   '- Ids are auto-incrementing integers. Path parameters arrive as strings and are coerced, so',
@@ -74,6 +76,8 @@ export function setupSwagger(app: INestApplication): void {
       'Order items',
       'Individual items on an order, and their progress through the kitchen. Nested under the order that owns them.',
     )
+    .addCookieAuth('better-auth.session_token')
+    .addSecurityRequirements('better-auth.session_token')
     .build();
 
   const documentOptions: SwaggerDocumentOptions = {
