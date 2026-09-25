@@ -440,6 +440,23 @@ schemas in the `contracts` library.
 | Orders | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id` |
 | Order items | `GET` `POST` `/orders/:orderId/items` · `GET` `PATCH` `DELETE` `/orders/:orderId/items/:id` |
 
+### Paging
+
+`GET /orders` is paged with two optional query parameters:
+
+| Parameter | Meaning | Default |
+| --- | --- | --- |
+| `take` | How many orders to return, capped at 200 | 50 |
+| `skip` | How many orders to skip before the page starts | 0 |
+
+Both may be omitted, so a client that ignores paging still gets the newest 50
+orders. `skip` counts rows rather than pages, so the second page of twenty is
+`?take=20&skip=20`. The response stays a plain array and carries no total; ask
+for one row more than you intend to show to find out whether another page
+exists.
+
+Every other collection is returned whole.
+
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:
 
