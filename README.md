@@ -456,18 +456,22 @@ schemas in the `contracts` library.
 | Orders | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id` |
 | Order items | `GET` `POST` `/orders/:orderId/items` · `GET` `PATCH` `DELETE` `/orders/:orderId/items/:id` |
 
-### Login and access rules
+### Paging
 
-Sign in with `POST /api/auth/sign-in/email` using `{ "email": "...", "password": "..." }`. Better Auth returns an HTTP-only session cookie. Send that cookie with subsequent API requests. `GET /api/auth/get-session`, `POST /api/auth/change-password`, and `POST /api/auth/sign-out` are also available. Public sign-up is disabled. All business routes require a login; an unauthenticated request gets `401`, while a logged-in user without permission gets `403`.
+`GET /orders` is paged with two optional query parameters:
 
-| Role | Access |
-| --- | --- |
-| `ADMIN` | Full access, including employee CRUD, login activation, and role assignment. The last active admin cannot be deleted or demoted. |
-| `SERVICE` | Read all orders; create and change assigned orders and their items; update own profile without changing the role; mark any product type `SERVED` or `REMAKE` when its status transition permits it. |
-| `KITCHEN` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `FOOD` and `APPETIZER` items; update own profile without changing the role. |
-| `BAR` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `DRINK` items; update own profile without changing the role. |
+| Parameter | Meaning | Default |
+| --- | --- | --- |
+| `take` | How many orders to return, capped at 200 | 50 |
+| `skip` | How many orders to skip before the page starts | 0 |
 
-All signed-in staff can read tables, products, and ingredients. Only admins can change those resources. Employees can read their own profile; only admins can list all employees. Roles are read from the database for every request, so changes take effect immediately. There is no separate superuser role; the first admin is bootstrapped once and can appoint other admins.
+Both may be omitted, so a client that ignores paging still gets the newest 50
+orders. `skip` counts rows rather than pages, so the second page of twenty is
+`?take=20&skip=20`. The response stays a plain array and carries no total; ask
+for one row more than you intend to show to find out whether another page
+exists.
+
+Every other collection is returned whole.
 
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:
