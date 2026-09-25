@@ -15,6 +15,8 @@ import {
 } from '@smart-restaurant/contracts';
 
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
+import { AccessService } from '../auth/access.service.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.repository.js';
 
@@ -23,6 +25,7 @@ export class OrderItemsService {
   constructor(
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
+    private readonly access: AccessService,
   ) {}
 
   async findAll(orderId: number): Promise<OrderItemWithDetails[]> {
@@ -61,8 +64,10 @@ export class OrderItemsService {
     orderId: number,
     id: number,
     dto: UpdateOrderItemDto,
+    actor: AuthenticatedEmployee,
   ): Promise<OrderItemWithDetails> {
     const orderItem = await this.findOne(orderId, id);
+    this.access.requireStatusChange(actor, orderItem.product.type, dto.status);
 
     const kind = classifyOrderItemTransition(orderItem.status, dto.status, orderItem.product.type);
 

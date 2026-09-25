@@ -10,6 +10,10 @@ import {
   type UpdateProductDto,
 } from '@smart-restaurant/contracts';
 
+import { AccessService } from '../auth/access.service.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+
 import {
   ApiEntityConflictResponse,
   ApiEntityNotFoundResponse,
@@ -21,7 +25,10 @@ import { ProductsService } from './products.service.js';
 @ApiTags('Products')
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -65,7 +72,11 @@ export class ProductsController {
   @ApiValidationErrorResponse(
     'The payload failed validation, an ingredient appears more than once, or a referenced ingredient does not exist.',
   )
-  create(@Body({ schema: createProductSchema }) dto: CreateProductDto) {
+  create(
+    @Body({ schema: createProductSchema }) dto: CreateProductDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
     return this.productsService.create(dto);
   }
 
@@ -88,7 +99,9 @@ export class ProductsController {
   update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateProductSchema }) dto: UpdateProductDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
+    this.access.requireAdmin(actor);
     return this.productsService.update(id, dto);
   }
 
@@ -108,7 +121,11 @@ export class ProductsController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No product with that id exists.')
   @ApiEntityConflictResponse('The product is still referenced by at least one order item.')
-  remove(@Param('id', { schema: idParamSchema }) id: number) {
+  remove(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
     return this.productsService.remove(id);
   }
 }

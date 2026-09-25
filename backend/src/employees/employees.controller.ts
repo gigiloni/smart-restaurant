@@ -3,13 +3,18 @@ import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestj
 
 import {
   createEmployeeSchema,
+  employeeAccountSchema,
   employeeSchema,
   idParamSchema,
   updateEmployeeSchema,
   type CreateEmployeeDto,
+  type EmployeeAccountDto,
   type UpdateEmployeeDto,
 } from '@smart-restaurant/contracts';
 
+import { AccessService } from '../auth/access.service.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import {
   ApiEntityConflictResponse,
   ApiEntityNotFoundResponse,
@@ -21,7 +26,10 @@ import { EmployeesService } from './employees.service.js';
 @ApiTags('Employees')
 @Controller('employees')
 export class EmployeesController {
-  constructor(private readonly employeesService: EmployeesService) {}
+  constructor(
+    private readonly employeesService: EmployeesService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -34,8 +42,16 @@ export class EmployeesController {
     standardSchema: employeeSchema,
     isArray: true,
   })
-  findAll() {
+  findAll(@CurrentEmployee() actor: AuthenticatedEmployee) {
+    this.access.requireAdmin(actor);
     return this.employeesService.findAll();
+  }
+
+  @Get('me')
+  @ApiOperation({ summary: 'Get the signed-in employee profile' })
+  @ApiOkResponse({ description: 'The current employee.', standardSchema: employeeSchema })
+  me(@CurrentEmployee() actor: AuthenticatedEmployee) {
+    return this.employeesService.findOne(actor.id);
   }
 
   @Get(':id')
@@ -44,7 +60,11 @@ export class EmployeesController {
   @ApiOkResponse({ description: 'The requested employee.', standardSchema: employeeSchema })
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No employee with that id exists.')
-  findOne(@Param('id', { schema: idParamSchema }) id: number) {
+  findOne(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireEmployee(actor, id);
     return this.employeesService.findOne(id);
   }
 
@@ -56,8 +76,25 @@ export class EmployeesController {
   })
   @ApiCreatedResponse({ description: 'The created employee.', standardSchema: employeeSchema })
   @ApiValidationErrorResponse('The payload failed validation.')
-  create(@Body({ schema: createEmployeeSchema }) dto: CreateEmployeeDto) {
+  create(
+    @Body({ schema: createEmployeeSchema }) dto: CreateEmployeeDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
     return this.employeesService.create(dto);
+  }
+
+  @Post(':id/account')
+  @ApiOperation({ summary: 'Add login credentials to an existing employee' })
+  @ApiIdParam('id', 'Id of the employee to activate.')
+  @ApiCreatedResponse({ description: 'The activated employee.', standardSchema: employeeSchema })
+  provisionAccount(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @Body({ schema: employeeAccountSchema }) dto: EmployeeAccountDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
+    return this.employeesService.provisionAccount(id, dto);
   }
 
   @Patch(':id')
@@ -74,7 +111,9 @@ export class EmployeesController {
   update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateEmployeeSchema }) dto: UpdateEmployeeDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
+    this.access.requireEmployeeUpdate(actor, id, dto.role);
     return this.employeesService.update(id, dto);
   }
 
@@ -93,7 +132,11 @@ export class EmployeesController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No employee with that id exists.')
   @ApiEntityConflictResponse('The employee has taken at least one order.')
-  remove(@Param('id', { schema: idParamSchema }) id: number) {
+  remove(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
     return this.employeesService.remove(id);
   }
 }

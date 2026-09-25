@@ -5,13 +5,10 @@
 --
 --   cd backend && pnpm exec prisma migrate deploy
 --
--- Then load this file. With the compose stack running, no local psql is needed:
+-- Then run `pnpm db:seed` from the repository root. Prisma executes seed.mjs,
+-- which sends this file directly to PostgreSQL over DATABASE_URL.
 --
---   docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
---     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < backend/prisma/seed.sql
---
--- Re-running is safe: every table is truncated first and the identity sequences
--- are reset, so ids stay stable across reloads.
+-- Re-running resets all sample data and authentication accounts. Ids stay stable.
 
 BEGIN;
 
@@ -22,7 +19,11 @@ TRUNCATE TABLE
   "Product",
   "Ingredient",
   "Table",
-  "Employee"
+  "Employee",
+  "session",
+  "account",
+  "verification",
+  "user"
   RESTART IDENTITY CASCADE;
 
 --

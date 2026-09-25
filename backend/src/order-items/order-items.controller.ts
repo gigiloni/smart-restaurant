@@ -10,6 +10,10 @@ import {
   type UpdateOrderItemDto,
 } from '@smart-restaurant/contracts';
 
+import { AccessService } from '../auth/access.service.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+
 import {
   ApiEntityConflictResponse,
   ApiEntityNotFoundResponse,
@@ -25,7 +29,10 @@ import { OrderItemsService } from './order-items.service.js';
 @ApiTags('Order items')
 @Controller('orders/:orderId/items')
 export class OrderItemsController {
-  constructor(private readonly orderItemsService: OrderItemsService) {}
+  constructor(
+    private readonly orderItemsService: OrderItemsService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -80,10 +87,12 @@ export class OrderItemsController {
     '`orderId` is not a positive integer, the payload is invalid, or the referenced product does not exist.',
   )
   @ApiEntityNotFoundResponse('No order with that id exists.')
-  create(
+  async create(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Body({ schema: createOrderItemSchema }) dto: CreateOrderItemDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
+    await this.access.requireOrderOwner(actor, orderId);
     return this.orderItemsService.create(orderId, dto);
   }
 
@@ -137,8 +146,9 @@ export class OrderItemsController {
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateOrderItemSchema }) dto: UpdateOrderItemDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    return this.orderItemsService.update(orderId, id, dto);
+    return this.orderItemsService.update(orderId, id, dto, actor);
   }
 
   @Delete(':id')
@@ -156,10 +166,12 @@ export class OrderItemsController {
   })
   @ApiValidationErrorResponse('`orderId` or `id` is not a positive integer.')
   @ApiEntityNotFoundResponse('The order does not exist, or the item does not belong to it.')
-  remove(
+  async remove(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
+    await this.access.requireOrderOwner(actor, orderId);
     return this.orderItemsService.remove(orderId, id);
   }
 }

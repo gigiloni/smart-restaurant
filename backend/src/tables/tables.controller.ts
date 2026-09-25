@@ -10,6 +10,10 @@ import {
   type UpdateTableDto,
 } from '@smart-restaurant/contracts';
 
+import { AccessService } from '../auth/access.service.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+
 import {
   ApiEntityConflictResponse,
   ApiEntityNotFoundResponse,
@@ -21,7 +25,10 @@ import { TablesService } from './tables.service.js';
 @ApiTags('Tables')
 @Controller('tables')
 export class TablesController {
-  constructor(private readonly tablesService: TablesService) {}
+  constructor(
+    private readonly tablesService: TablesService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -61,7 +68,11 @@ export class TablesController {
   @ApiCreatedResponse({ description: 'The created table.', standardSchema: tableSchema })
   @ApiValidationErrorResponse('The payload failed validation.')
   @ApiEntityConflictResponse('Another table already uses that table number.')
-  create(@Body({ schema: createTableSchema }) dto: CreateTableDto) {
+  create(
+    @Body({ schema: createTableSchema }) dto: CreateTableDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
     return this.tablesService.create(dto);
   }
 
@@ -79,7 +90,9 @@ export class TablesController {
   update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateTableSchema }) dto: UpdateTableDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
+    this.access.requireAdmin(actor);
     return this.tablesService.update(id, dto);
   }
 
@@ -98,7 +111,11 @@ export class TablesController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No table with that id exists.')
   @ApiEntityConflictResponse('The table still has at least one order against it.')
-  remove(@Param('id', { schema: idParamSchema }) id: number) {
+  remove(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
     return this.tablesService.remove(id);
   }
 }
