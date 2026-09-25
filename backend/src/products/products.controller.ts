@@ -10,6 +10,7 @@ import {
   type UpdateProductDto,
 } from '@smart-restaurant/contracts';
 
+import { AllowGuests } from '../auth/access-metadata.js';
 import { AccessService } from '../auth/access.service.js';
 import { CurrentEmployee } from '../auth/current-employee.decorator.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
@@ -31,10 +32,12 @@ export class ProductsController {
   ) {}
 
   @Get()
+  @AllowGuests()
   @ApiOperation({
     summary: 'List all products',
     description:
-      'Returns every product on the menu, sorted by name, each with its recipe resolved. Takes no query parameters: the list is neither filtered nor paginated.',
+      'Returns every product on the menu, sorted by name, each with its recipe resolved. Takes no query parameters: the list is neither filtered nor paginated.\n\n' +
+      'Guests seated through a QR code can read this too: it is the menu.',
   })
   @ApiOkResponse({
     description: 'All products, sorted by name.',
@@ -46,9 +49,11 @@ export class ProductsController {
   }
 
   @Get(':id')
+  @AllowGuests()
   @ApiOperation({
     summary: 'Get one product',
-    description: 'Returns a single product with its recipe resolved.',
+    description:
+      'Returns a single product with its recipe resolved. Guests seated through a QR code can read this too.',
   })
   @ApiIdParam('id', 'Id of the product to return.')
   @ApiOkResponse({ description: 'The requested product.', standardSchema: productSchema })

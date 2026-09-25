@@ -2,6 +2,8 @@ import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule, type SwaggerDocumentOptions } from '@nestjs/swagger';
 import { createSchema } from 'zod-openapi';
 
+import { GUEST_COOKIE } from '../auth/access-metadata.js';
+
 /**
  * Conventions that hold for every endpoint, documented once here rather than
  * repeated on each route.
@@ -16,6 +18,9 @@ const API_DESCRIPTION = [
   '  **Authentication → Sign in** with Try it out, then test the business routes in the same browser tab.',
   '  The browser stores the HTTP-only cookie; do not enter its value in Authorize.',
   '- Role and ownership checks return 403; missing or expired sessions return 401.',
+  "- Guests have no login. The guest app sends the `tableId` and `token` from the table's QR code to",
+  '  `POST /viewer/guest`, which sets the HTTP-only `sr_guest` cookie. Only routes that say so accept',
+  '  it: the menu (`GET /products`) and `GET /viewer`. It stops working when service clears the table.',
   '- Request bodies and path parameters are validated against the Zod schemas in the shared',
   '  `@smart-restaurant/contracts` library, so the frontend and the backend agree on one definition.',
   '- Ids are auto-incrementing integers. Path parameters arrive as strings and are coerced, so',
@@ -91,11 +96,23 @@ export function setupSwagger(app: INestApplication): void {
     )
     .addTag('Orders', 'Orders placed by the party at a table, and paid one at a time.')
     .addTag('Authentication', 'Better Auth email/password session endpoints.')
+    .addTag('Viewer', 'Who is asking: staff by login, guests by the QR code on their table.')
     .addTag(
       'Order items',
       'Individual items on an order, and their progress through the kitchen. Nested under the order that owns them.',
     )
-    .addCookieAuth('better-auth.session_token')
+    // Named explicitly: the default scheme name is `cookie` for both, so the
+    // second would replace the first and the requirements would dangle.
+    .addCookieAuth(
+      'better-auth.session_token',
+      { type: 'apiKey', description: 'Staff login, set by Authentication → Sign in.' },
+      'better-auth.session_token',
+    )
+    .addCookieAuth(
+      GUEST_COOKIE,
+      { type: 'apiKey', description: 'Guest access, set by `POST /viewer/guest`.' },
+      GUEST_COOKIE,
+    )
     .addSecurityRequirements('better-auth.session_token')
     .build();
 
@@ -114,6 +131,12 @@ export function setupSwagger(app: INestApplication): void {
   };
 
   const document = SwaggerModule.createDocument(app, config, documentOptions);
+
+  // The one route that needs no identity: it is how a guest gets one.
+  const enterAsGuest = document.paths['/api/viewer/guest']?.post;
+  if (enterAsGuest) {
+    enterAsGuest.security = [];
+  }
 
   // Better Auth owns these Fastify routes, so Nest cannot discover them from
   // controller decorators. Document the login that sets the browser cookie.

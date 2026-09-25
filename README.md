@@ -486,6 +486,25 @@ Sign in with `POST /api/auth/sign-in/email` using `{ "email": "...", "password":
 
 All signed-in staff can read tables, products, and ingredients. Only admins can change those resources. Employees can read their own profile; only admins can list all employees. Roles are read from the database for every request, so changes take effect immediately. There is no separate superuser role; the first admin is bootstrapped once and can appoint other admins.
 
+#### Guests
+
+Guests have no login. Each table carries a QR code with its `tableId` and a
+`token`; staff with the `SERVICE` or `ADMIN` role read what to print from
+`GET /api/tables/:id/qr-code`. The guest app sends both to
+`POST /api/viewer/guest`, which needs no login. It joins the party seated at the
+table, or seats a new one if the table is free, and sets the HTTP-only
+`sr_guest` cookie.
+
+That cookie is bound to the party's table session, not the table. It follows the
+party when service moves them, and stops working the moment service clears the
+table, so the next party at the table is out of reach. Guests can reach only
+routes marked for them: the menu (`GET /api/products`, `GET /api/products/:id`)
+and `GET /api/viewer`, which returns who the caller is, staff or guest. Every
+other route answers a guest with `401`.
+
+The token and the cookie are HMACs under a key derived from
+`BETTER_AUTH_SECRET`. Changing that secret invalidates every printed QR code.
+
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:
 

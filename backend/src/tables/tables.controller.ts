@@ -4,6 +4,7 @@ import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestj
 import {
   createTableSchema,
   idParamSchema,
+  tableQrCodeSchema,
   tableSchema,
   updateTableSchema,
   type CreateTableDto,
@@ -13,6 +14,7 @@ import {
 import { AccessService } from '../auth/access.service.js';
 import { CurrentEmployee } from '../auth/current-employee.decorator.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+import { GuestAccessService } from '../auth/guest-access.service.js';
 
 import {
   ApiEntityConflictResponse,
@@ -28,6 +30,7 @@ export class TablesController {
   constructor(
     private readonly tablesService: TablesService,
     private readonly access: AccessService,
+    private readonly guestAccess: GuestAccessService,
   ) {}
 
   @Get()
@@ -57,6 +60,33 @@ export class TablesController {
   @ApiEntityNotFoundResponse('No table with that id exists.')
   findOne(@Param('id', { schema: idParamSchema }) id: number) {
     return this.tablesService.findOne(id);
+  }
+
+  @Get(':id/qr-code')
+  @ApiOperation({
+    summary: "Get a table's QR code content",
+    description:
+      'Returns what to encode in the QR code printed on this table. The guest app sends `tableId` and `token` to `POST /viewer/guest` to join the party seated there.\n\n' +
+      'The token never changes, so a printed code keeps working. Anyone holding it can join whoever is seated at the table, which is why only staff can read it.\n\n' +
+      'Requires the SERVICE or ADMIN role.',
+  })
+  @ApiIdParam('id', 'Id of the table.')
+  @ApiOkResponse({ description: 'The QR code content.', standardSchema: tableQrCodeSchema })
+  @ApiValidationErrorResponse('`id` is not a positive integer.')
+  @ApiEntityNotFoundResponse('No table with that id exists.')
+  async qrCode(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireService(actor);
+
+    const table = await this.tablesService.findOne(id);
+
+    return {
+      tableId: table.id,
+      tableNumber: table.tableNumber,
+      token: this.guestAccess.tableToken(table.id),
+    };
   }
 
   @Post()
