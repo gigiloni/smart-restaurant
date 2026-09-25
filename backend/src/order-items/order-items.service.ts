@@ -17,12 +17,16 @@ import {
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { AccessService } from '../auth/access.service.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+import { PrismaService } from '../database/prisma.service.js';
+import { lockOrder } from '../database/row-locks.js';
+import { requireOpenOrder } from '../orders/order-guards.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.repository.js';
 
 @Injectable()
 export class OrderItemsService {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
     private readonly access: AccessService,
@@ -47,10 +51,12 @@ export class OrderItemsService {
   }
 
   async create(orderId: number, dto: CreateOrderItemDto): Promise<OrderItemWithDetails> {
-    await this.ordersService.findOne(orderId);
-
     try {
-      return await this.orderItemsRepository.create(orderId, dto);
+      return await this.prisma.$transaction(async (tx) => {
+        requireOpenOrder(await lockOrder(tx, orderId), orderId);
+
+        return this.orderItemsRepository.create(orderId, dto, tx);
+      });
     } catch (error) {
       if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation)) {
         throw new BadRequestException(`Product ${dto.productId} does not exist`);
@@ -60,51 +66,76 @@ export class OrderItemsService {
     }
   }
 
-  async update(
+  /**
+   * Holding the order's lock for the whole check-and-write means the item is
+   * classified against the status it really has: a concurrent change either
+   * finished before this one read the item, or waits until this one is done.
+   */
+  update(
     orderId: number,
     id: number,
     dto: UpdateOrderItemDto,
     actor: AuthenticatedEmployee,
   ): Promise<OrderItemWithDetails> {
-    const orderItem = await this.findOne(orderId, id);
-    this.access.requireStatusChange(actor, orderItem.product.type, dto.status);
+    return this.prisma.$transaction(async (tx) => {
+      requireOpenOrder(await lockOrder(tx, orderId), orderId);
 
-    const kind = classifyOrderItemTransition(orderItem.status, dto.status, orderItem.product.type);
+      const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id, tx);
 
-    if (kind === null) {
-      throw new ConflictException(
-        this.describeRejectedTransition(id, orderItem.status, dto.status, orderItem.product.type),
+      if (!orderItem) {
+        throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
+      }
+
+      this.access.requireStatusChange(actor, orderItem.product.type, dto.status);
+
+      const kind = classifyOrderItemTransition(
+        orderItem.status,
+        dto.status,
+        orderItem.product.type,
       );
-    }
 
-    // Re-sending the current status is accepted so a retried request is safe,
-    // but there is nothing to write.
-    if (kind === 'unchanged') {
-      return orderItem;
-    }
+      if (kind === null) {
+        throw new ConflictException(
+          this.describeRejectedTransition(id, orderItem.status, dto.status, orderItem.product.type),
+        );
+      }
 
-    const updated = await this.orderItemsRepository.updateWhenStatusIs(id, orderItem.status, dto);
+      // Re-sending the current status is accepted so a retried request is
+      // safe, but there is nothing to write.
+      if (kind === 'unchanged') {
+        return orderItem;
+      }
 
-    // The item moved between the check above and the write. Rather than guess
-    // whether the move is still legal from wherever it landed, report the
-    // current status so the caller can decide against what is actually true.
-    if (updated === null) {
-      const current = await this.orderItemsRepository.findByOrderAndId(orderId, id);
-
-      throw new ConflictException(
-        `Order item ${id} was changed by another request while this one was in flight. ` +
-          `It was ${orderItem.status} and is now ${current?.status ?? 'deleted'}. ` +
-          `Re-read the item and retry against its current status.`,
+      const updated = await this.orderItemsRepository.updateWhenStatusIs(
+        id,
+        orderItem.status,
+        dto,
+        tx,
       );
-    }
 
-    return updated;
+      if (updated === null) {
+        throw new ConflictException(
+          `Order item ${id} was changed by another request while this one was in flight. ` +
+            `Re-read the item and retry against its current status.`,
+        );
+      }
+
+      return updated;
+    });
   }
 
-  async remove(orderId: number, id: number): Promise<OrderItemWithDetails> {
-    await this.findOne(orderId, id);
+  remove(orderId: number, id: number): Promise<OrderItemWithDetails> {
+    return this.prisma.$transaction(async (tx) => {
+      requireOpenOrder(await lockOrder(tx, orderId), orderId);
 
-    return this.orderItemsRepository.remove(id);
+      const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id, tx);
+
+      if (!orderItem) {
+        throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
+      }
+
+      return this.orderItemsRepository.remove(id, tx);
+    });
   }
 
   /**

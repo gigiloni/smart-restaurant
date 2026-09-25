@@ -38,6 +38,17 @@ const API_DESCRIPTION = [
   '- **Order items** (`Order_Item`) live under `/orders/{orderId}/items`. Reads and writes are',
   '  scoped by the order, so an item cannot be reached through the wrong parent.',
   '',
+  '### Table sessions and payment',
+  '',
+  "Orders belong to a **table session**: one party's time at a table. The first QR scan — or the first",
+  'order — at a free table opens a session; every later scan joins it. A table has at most one open',
+  'session, so a table is free exactly when no open session names it.',
+  '',
+  '- `POST /orders/{id}/close` takes payment for one order. Everything on it must have been served, and',
+  '  the order is frozen from then on.',
+  '- `POST /table-sessions/{id}/close` clears the table once every order in the session is paid.',
+  '- `PATCH /table-sessions/{id}` moves the whole party, orders included, to a free table.',
+  '',
   '### Order item status',
   '',
   'Order items move along `OPEN -> IN_PROGRESS -> READY -> SERVED`, with `REMAKE` off to the side',
@@ -54,7 +65,8 @@ const API_DESCRIPTION = [
   '',
   '| Action | Result |',
   '| --- | --- |',
-  '| Delete an order | its order items are deleted with it |',
+  '| Delete an open order | its order items are deleted with it |',
+  '| Delete or change a closed order | 409 Conflict: it has been paid |',
   '| Delete a product | its recipe lines are deleted with it |',
   '| Delete a product that is on an order | 409 Conflict |',
   '| Delete an ingredient used by a recipe | 409 Conflict |',
@@ -71,7 +83,11 @@ export function setupSwagger(app: INestApplication): void {
     .addTag('Products', 'Menu products and their recipes.')
     .addTag('Ingredients', 'Raw ingredients that products are made from.')
     .addTag('Employees', 'Members of staff, who may be assigned to the orders they take.')
-    .addTag('Orders', 'Orders opened on a table.')
+    .addTag(
+      'Table sessions',
+      "One party's time at a table, from the first QR scan until service clears it. Orders belong to a session.",
+    )
+    .addTag('Orders', 'Orders placed by the party at a table, and paid one at a time.')
     .addTag(
       'Order items',
       'Individual items on an order, and their progress through the kitchen. Nested under the order that owns them.',

@@ -6,6 +6,7 @@ import type {
   UpdateOrderItemDto,
 } from '@smart-restaurant/contracts';
 
+import type { Db } from '../database/db.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 
@@ -39,8 +40,12 @@ export class OrderItemsRepository {
    * Scoped by `orderId` so an item can never be read or written through the
    * wrong order.
    */
-  findByOrderAndId(orderId: number, id: number): Promise<OrderItemWithDetails | null> {
-    return this.prisma.orderItem.findFirst({
+  findByOrderAndId(
+    orderId: number,
+    id: number,
+    db: Db = this.prisma,
+  ): Promise<OrderItemWithDetails | null> {
+    return db.orderItem.findFirst({
       where: {
         id,
         orderId,
@@ -50,8 +55,8 @@ export class OrderItemsRepository {
     });
   }
 
-  create(orderId: number, dto: CreateOrderItemDto): Promise<OrderItemWithDetails> {
-    return this.prisma.orderItem.create({
+  create(orderId: number, dto: CreateOrderItemDto, db: Db): Promise<OrderItemWithDetails> {
+    return db.orderItem.create({
       data: {
         ...dto,
         orderId,
@@ -64,43 +69,42 @@ export class OrderItemsRepository {
   /**
    * Writes the new status only while the item is still in `expectedStatus`.
    *
-   * The permitted-transition check runs against the status the service read, so
-   * an unguarded write would apply it even if another request moved the item in
-   * between — producing a change no single transition allows. Matching on the
-   * status makes the check and the write one atomic step, and a `null` return
-   * means the item moved underneath this request.
+   * Callers hold the parent order's row lock, which already stops another
+   * request moving the item between the permitted-transition check and this
+   * write. Matching on the status as well means a caller that forgot the lock
+   * gets a `null` back rather than silently applying a move no transition
+   * allows.
    */
   async updateWhenStatusIs(
     id: number,
     expectedStatus: OrderItemStatus,
     dto: UpdateOrderItemDto,
+    db: Db,
   ): Promise<OrderItemWithDetails | null> {
-    return this.prisma.$transaction(async (tx) => {
-      const { count } = await tx.orderItem.updateMany({
-        where: {
-          id,
-          status: expectedStatus,
-        },
+    const { count } = await db.orderItem.updateMany({
+      where: {
+        id,
+        status: expectedStatus,
+      },
 
-        data: dto,
-      });
+      data: dto,
+    });
 
-      if (count === 0) {
-        return null;
-      }
+    if (count === 0) {
+      return null;
+    }
 
-      return tx.orderItem.findUnique({
-        where: {
-          id,
-        },
+    return db.orderItem.findUnique({
+      where: {
+        id,
+      },
 
-        include: orderItemDetailsInclude,
-      });
+      include: orderItemDetailsInclude,
     });
   }
 
-  remove(id: number): Promise<OrderItemWithDetails> {
-    return this.prisma.orderItem.delete({
+  remove(id: number, db: Db): Promise<OrderItemWithDetails> {
+    return db.orderItem.delete({
       where: {
         id,
       },

@@ -10,6 +10,7 @@ import { IngredientsModule } from '../ingredients/ingredients.module.js';
 import { OrderItemsModule } from '../order-items/order-items.module.js';
 import { OrdersModule } from '../orders/orders.module.js';
 import { ProductsModule } from '../products/products.module.js';
+import { TableSessionsModule } from '../table-sessions/table-sessions.module.js';
 import { TablesModule } from '../tables/tables.module.js';
 
 @Module({
@@ -28,6 +29,7 @@ import { TablesModule } from '../tables/tables.module.js';
     OrderItemsModule,
     OrdersModule,
     ProductsModule,
+    TableSessionsModule,
     TablesModule,
   ],
 })

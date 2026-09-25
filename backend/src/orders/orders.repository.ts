@@ -1,18 +1,16 @@
 import { Injectable } from '@nestjs/common';
 
 import type {
-  CreateOrderDto,
+  CreateOrderItemDto,
   PaginationQuery,
   UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
-import {
-  Prisma,
-} from '../generated/prisma/client.js';
-
+import type { Db } from '../database/db.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { Prisma } from '../generated/prisma/client.js';
 
-const orderDetailsInclude = {
+export const orderDetailsInclude = {
   table: true,
   employee: true,
 
@@ -20,24 +18,29 @@ const orderDetailsInclude = {
     include: {
       product: true,
     },
+
+    orderBy: {
+      id: 'asc',
+    },
   },
 } satisfies Prisma.OrderInclude;
 
-export type OrderWithDetails =
-  Prisma.OrderGetPayload<{
-    include: typeof orderDetailsInclude;
-  }>;
+export type OrderWithDetails = Prisma.OrderGetPayload<{
+  include: typeof orderDetailsInclude;
+}>;
+
+export interface NewOrder {
+  tableSessionId: number;
+  tableId: number;
+  employeeId?: number | null;
+  items?: CreateOrderItemDto[];
+}
 
 @Injectable()
 export class OrdersRepository {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findAll({
-    take,
-    skip,
-  }: PaginationQuery): Promise<OrderWithDetails[]> {
+  findAll({ take, skip }: PaginationQuery): Promise<OrderWithDetails[]> {
     return this.prisma.order.findMany({
       include: orderDetailsInclude,
 
@@ -50,10 +53,8 @@ export class OrdersRepository {
     });
   }
 
-  async findById(
-    id: number,
-  ): Promise<OrderWithDetails | null> {
-    return this.prisma.order.findUnique({
+  findById(id: number, db: Db = this.prisma): Promise<OrderWithDetails | null> {
+    return db.order.findUnique({
       where: {
         id,
       },
@@ -62,11 +63,8 @@ export class OrdersRepository {
     });
   }
 
-  async create({
-    items,
-    ...order
-  }: CreateOrderDto): Promise<OrderWithDetails> {
-    return this.prisma.order.create({
+  create({ items, ...order }: NewOrder, db: Db): Promise<OrderWithDetails> {
+    return db.order.create({
       data: {
         ...order,
 
@@ -79,11 +77,8 @@ export class OrdersRepository {
     });
   }
 
-  async update(
-    id: number,
-    dto: UpdateOrderDto,
-  ): Promise<OrderWithDetails> {
-    return this.prisma.order.update({
+  update(id: number, dto: UpdateOrderDto, db: Db): Promise<OrderWithDetails> {
+    return db.order.update({
       where: {
         id,
       },
@@ -94,10 +89,34 @@ export class OrdersRepository {
     });
   }
 
-  async remove(
-    id: number,
-  ): Promise<OrderWithDetails> {
-    return this.prisma.order.delete({
+  countUnservedItems(id: number, db: Db): Promise<number> {
+    return db.orderItem.count({
+      where: {
+        orderId: id,
+        status: {
+          not: 'SERVED',
+        },
+      },
+    });
+  }
+
+  close(id: number, db: Db): Promise<OrderWithDetails> {
+    return db.order.update({
+      where: {
+        id,
+      },
+
+      data: {
+        status: 'CLOSED',
+        closedAt: new Date(),
+      },
+
+      include: orderDetailsInclude,
+    });
+  }
+
+  remove(id: number, db: Db): Promise<OrderWithDetails> {
+    return db.order.delete({
       where: {
         id,
       },

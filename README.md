@@ -498,6 +498,41 @@ neither can exist without its parent:
   returns `404` rather than being readable through the wrong parent. Items can
   also be created inline via the optional `items` array on `POST /orders`.
 
+### Table sessions and payment
+
+Orders belong to a **table session**: one party's time at a table, from the
+first QR scan until service clears the table.
+
+```text
+Table    FREE ──(first QR scan or order)──► OCCUPIED ──(service clears)──► FREE
+                opens a session                          only once every order is paid
+
+Order    OPEN ──(service takes payment)──► CLOSED
+               only once every item is SERVED   frozen from then on
+```
+
+| Action | Route | Who |
+| --- | --- | --- |
+| Join or open the session at a table | `POST /table-sessions` | `SERVICE`, `ADMIN` |
+| List seated parties | `GET /table-sessions` | all staff |
+| Move a party, with its orders, to a free table | `PATCH /table-sessions/:id` | `SERVICE`, `ADMIN` |
+| Take payment for one order | `POST /orders/:id/close` | the order's service employee, `ADMIN` |
+| Clear the table | `POST /table-sessions/:id/close` | `SERVICE`, `ADMIN` |
+
+Joining is idempotent: every guest scanning the same code lands in the same
+session, and scans arriving at the same moment on a free table still share one.
+Placing an order at a free table opens a session for it. Taking payment and
+clearing the table are idempotent too, so retried requests are safe.
+
+A closed order is frozen: its items can no longer be added, removed or moved
+through the kitchen workflow, and the order can no longer be reassigned or
+deleted. An order no longer changes table on its own — moving a party moves
+every order it has placed.
+
+A table has at most one open session. That is enforced by a partial unique index
+created in the migration, since Prisma cannot express it, and an order's
+`tableId` is kept equal to its session's table by a composite foreign key.
+
 ### Order item status
 
 Order items travel along a chain, with `REMAKE` off to the side for an item that
@@ -545,7 +580,8 @@ referenced protect their referent:
 
 | Action | Result |
 | --- | --- |
-| Delete an order | its order items are cascaded away |
+| Delete an open order | its order items are cascaded away |
+| Delete or change a closed order | `409 Conflict`: it has been paid |
 | Delete a product | its recipe lines are cascaded away |
 | Delete a product that is on an order | `409 Conflict` |
 | Delete an ingredient used by a product | `409 Conflict` |
