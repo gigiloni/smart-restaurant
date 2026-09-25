@@ -36,7 +36,8 @@
       "continuous": true,
 
       "options": {
-        "buildTarget": "backend:build"
+        "buildTarget": "backend:build",
+        "runBuildTargetDependencies": true
       }
     }
   }

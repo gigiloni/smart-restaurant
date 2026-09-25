@@ -35,8 +35,12 @@ export class TablesService {
     return table;
   }
 
-  create(dto: CreateTableDto) {
-    return this.tablesRepository.create(dto);
+  async create(dto: CreateTableDto) {
+    try {
+      return await this.tablesRepository.create(dto);
+    } catch (error) {
+      throw this.mapDuplicateTableNumber(error, dto.tableNumber);
+    }
   }
 
   async update(
@@ -45,10 +49,17 @@ export class TablesService {
   ) {
     await this.findOne(id);
 
-    return this.tablesRepository.update(
-      id,
-      dto,
-    );
+    try {
+      return await this.tablesRepository.update(
+        id,
+        dto,
+      );
+    } catch (error) {
+      throw this.mapDuplicateTableNumber(
+        error,
+        dto.tableNumber,
+      );
+    }
   }
 
   async remove(id: number) {
@@ -66,5 +77,22 @@ export class TablesService {
 
       throw error;
     }
+  }
+
+  /**
+   * `table_number` is unique, so reusing one is a conflict with an existing
+   * table rather than a malformed request.
+   */
+  private mapDuplicateTableNumber(
+    error: unknown,
+    tableNumber: number | undefined,
+  ): unknown {
+    if (isPrismaError(error, PrismaErrorCode.UniqueConstraintViolation)) {
+      return new ConflictException(
+        `Table number ${tableNumber} is already taken`,
+      );
+    }
+
+    return error;
   }
 }

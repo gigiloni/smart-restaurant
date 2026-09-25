@@ -36,6 +36,15 @@ const API_DESCRIPTION = [
   '- **Order items** (`Order_Item`) live under `/orders/{orderId}/items`. Reads and writes are',
   '  scoped by the order, so an item cannot be reached through the wrong parent.',
   '',
+  '### Order item status',
+  '',
+  'Order items move along `OPEN -> IN_PROGRESS -> READY -> SERVED`, with `REMAKE` off to the side',
+  'for an item that has to be made again. Not every status may follow every other: a move is either',
+  'a **forward** step, a **skip** (DRINK items only, which may jump to any later status), a one-step',
+  '**undo**, a **send-back** into `REMAKE`, or a **remake** / **keep** back out of it. Re-sending the',
+  'current status is accepted as a no-op. A move that is not permitted returns `409`, and items are',
+  'always created at `OPEN`. The full table is on `PATCH /orders/{orderId}/items/{id}`.',
+  '',
   '### Delete behaviour',
   '',
   'Rows owned by a parent are cascaded away with it; rows that are only referenced protect their',
@@ -47,6 +56,7 @@ const API_DESCRIPTION = [
   '| Delete a product | its recipe lines are deleted with it |',
   '| Delete a product that is on an order | 409 Conflict |',
   '| Delete an ingredient used by a recipe | 409 Conflict |',
+  '| Delete an employee who has taken an order | 409 Conflict |',
   '| Delete a table that has orders | 409 Conflict |',
 ].join('\n');
 
@@ -58,6 +68,7 @@ export function setupSwagger(app: INestApplication): void {
     .addTag('Tables', 'Tables guests are seated at.')
     .addTag('Products', 'Menu products and their recipes.')
     .addTag('Ingredients', 'Raw ingredients that products are made from.')
+    .addTag('Employees', 'Members of staff, who may be assigned to the orders they take.')
     .addTag('Orders', 'Orders opened on a table.')
     .addTag(
       'Order items',
