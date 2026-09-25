@@ -173,19 +173,19 @@ pnpm nx graph
 Start the backend:
 
 ```bash
-pnpm nx serve backend
-```
-
-or:
-
-```bash
 pnpm start:backend
 ```
 
-Build the backend:
+To run the Nx target directly after generating the Prisma Client:
 
 ```bash
-pnpm nx build backend
+pnpm nx serve backend
+```
+
+Build all projects (including the backend):
+
+```bash
+pnpm build
 ```
 
 ### Contracts
@@ -246,13 +246,22 @@ cd backend
 
 ### Generate Prisma Client
 
-Generate the Prisma Client:
+From the repository root, generate the Prisma Client with:
+
+```bash
+pnpm db:generate
+```
+
+From the `backend` directory, the equivalent command is:
 
 ```bash
 pnpm exec prisma generate
 ```
 
-Run this command after changing `schema.prisma`.
+`pnpm dev`, `pnpm start:backend`, and `pnpm build` generate the client before
+starting or building. After changing `schema.prisma` while the development
+servers are already running, restart `pnpm dev` so the client is regenerated
+and the backend starts with it.
 
 ### Create a migration
 
@@ -374,9 +383,7 @@ docker compose -p smart-restaurant --env-file ./backend/.env up -d
 Generate the Prisma Client:
 
 ```bash
-cd backend
-pnpm exec prisma generate
-cd ..
+pnpm db:generate
 ```
 
 Build the shared contracts:
@@ -395,7 +402,7 @@ docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
 Start the backend:
 
 ```bash
-pnpm nx serve backend
+pnpm start:backend
 ```
 
 The backend API is available at:
@@ -427,11 +434,28 @@ schemas in the `contracts` library.
 | Resource | Routes |
 | --- | --- |
 | Tables | `GET` `POST` `/tables` · `GET` `PATCH` `DELETE` `/tables/:id` |
-| Employees | *not implemented yet* |
+| Employees | `GET` `POST` `/employees` · `GET` `PATCH` `DELETE` `/employees/:id` |
 | Products | `GET` `POST` `/products` · `GET` `PATCH` `DELETE` `/products/:id` |
 | Ingredients | `GET` `POST` `/ingredients` · `GET` `PATCH` `DELETE` `/ingredients/:id` |
 | Orders | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id` |
 | Order items | `GET` `POST` `/orders/:orderId/items` · `GET` `PATCH` `DELETE` `/orders/:orderId/items/:id` |
+
+### Paging
+
+`GET /orders` is paged with two optional query parameters:
+
+| Parameter | Meaning | Default |
+| --- | --- | --- |
+| `take` | How many orders to return, capped at 200 | 50 |
+| `skip` | How many orders to skip before the page starts | 0 |
+
+Both may be omitted, so a client that ignores paging still gets the newest 50
+orders. `skip` counts rows rather than pages, so the second page of twenty is
+`?take=20&skip=20`. The response stays a plain array and carries no total; ask
+for one row more than you intend to show to find out whether another page
+exists.
+
+Every other collection is returned whole.
 
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:
@@ -445,6 +469,46 @@ neither can exist without its parent:
   returns `404` rather than being readable through the wrong parent. Items can
   also be created inline via the optional `items` array on `POST /orders`.
 
+### Order item status
+
+Order items travel along a chain, with `REMAKE` off to the side for an item that
+has to be made again:
+
+```text
+OPEN  ──►  IN_PROGRESS  ──►  READY  ──►  SERVED
+```
+
+Not every status may follow every other. `PATCH /orders/{orderId}/items/{id}`
+rejects a move that is not permitted with `409 Conflict`, naming the targets that
+are. Items are always created at `OPEN`.
+
+| Move | Meaning |
+| --- | --- |
+| forward | The next step along the chain. Always permitted. |
+| skip | A forward jump past one or more steps. `DRINK` items only. |
+| undo | Exactly one step back, to correct a mis-tap. Never more than one step. |
+| send-back | `READY` or `SERVED` to `REMAKE`, when an item is rejected. |
+| remake | `REMAKE` to `IN_PROGRESS`, when the kitchen starts the replacement. |
+| keep | `REMAKE` to `SERVED`, when the guest accepts the item after all. |
+| unchanged | Re-sending the current status. Accepted as a no-op, so retries are safe. |
+
+Rows are the current status, columns the requested one:
+
+| from / to | OPEN | IN_PROGRESS | READY | SERVED | REMAKE |
+| --- | --- | --- | --- | --- | --- |
+| OPEN | unchanged | forward | skip *(DRINK)* | skip *(DRINK)* | — |
+| IN_PROGRESS | undo | unchanged | forward | skip *(DRINK)* | — |
+| READY | — | undo | unchanged | forward | send-back |
+| SERVED | — | — | undo | unchanged | send-back |
+| REMAKE | — | remake | — | keep | unchanged |
+
+Drinks need no preparation, so a `DRINK` item may jump forward to any later
+status. Skipping is one-way: `undo` stays a single step back for every product
+type, so a drink that jumped `OPEN` to `SERVED` unwinds one step at a time.
+
+The rules live in `contracts/src/lib/order-items/order-item-transitions.ts`, so
+the frontend can grey out impossible moves from the same source the API enforces.
+
 ### Delete behaviour
 
 Rows that are owned by a parent are removed with it; rows that are merely
@@ -456,3 +520,4 @@ referenced protect their referent:
 | Delete a product | its recipe lines are cascaded away |
 | Delete a product that is on an order | `409 Conflict` |
 | Delete an ingredient used by a product | `409 Conflict` |
+| Delete an employee who has taken an order | `409 Conflict` |

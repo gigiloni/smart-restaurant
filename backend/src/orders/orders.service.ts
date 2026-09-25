@@ -6,6 +6,7 @@ import {
 
 import type {
   CreateOrderDto,
+  PaginationQuery,
   UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
@@ -21,8 +22,10 @@ export class OrdersService {
     private readonly ordersRepository: OrdersRepository,
   ) {}
 
-  async findAll(): Promise<OrderWithDetails[]> {
-    return this.ordersRepository.findAll();
+  async findAll(
+    pagination: PaginationQuery,
+  ): Promise<OrderWithDetails[]> {
+    return this.ordersRepository.findAll(pagination);
   }
 
   async findOne(

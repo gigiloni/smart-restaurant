@@ -47,3 +47,5 @@ backend/.env
 *generated/
 
 .angular
+_tmp_*
+.pnpm-lock.yaml.*.tmp

@@ -1,12 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
   createOrderSchema,
+  DEFAULT_PAGE_SIZE,
   idParamSchema,
+  MAX_PAGE_SIZE,
   orderSchema,
+  paginationQuerySchema,
   updateOrderSchema,
   type CreateOrderDto,
+  type PaginationQuery,
   type UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
@@ -24,17 +28,25 @@ export class OrdersController {
 
   @Get()
   @ApiOperation({
-    summary: 'List all orders',
+    summary: 'List orders',
     description:
-      'Returns every order, newest first, each with its table, employee and items resolved. Takes no query parameters: the list is neither filtered nor paginated.',
+      'Returns one page of orders, newest first, each with its table, employee and items resolved.\n\n' +
+      `Both paging parameters are optional: a request that omits them gets the newest ${DEFAULT_PAGE_SIZE} orders. Page through older ones by raising \`skip\`, which counts rows rather than pages — the second page of twenty is \`?take=20&skip=20\`.\n\n` +
+      'The response is a plain array, so it carries no total. Ask for one more row than you intend to show to find out whether another page exists.\n\n' +
+      'Ordering is by id descending and therefore stable, but an order created between two requests shifts the window by one row, so a row may repeat across pages.',
   })
   @ApiOkResponse({
-    description: 'All orders, newest first.',
+    description: 'One page of orders, newest first.',
     standardSchema: orderSchema,
     isArray: true,
   })
-  findAll() {
-    return this.ordersService.findAll();
+  @ApiValidationErrorResponse(
+    '`take` or `skip` is not an integer, `take` is outside 1 to ' +
+      MAX_PAGE_SIZE +
+      ', or `skip` is negative.',
+  )
+  findAll(@Query({ schema: paginationQuerySchema }) pagination: PaginationQuery) {
+    return this.ordersService.findAll(pagination);
   }
 
   @Get(':id')
@@ -56,7 +68,7 @@ export class OrdersController {
     summary: 'Open an order',
     description:
       'Opens an order on a table, optionally with its first items.\n\n' +
-      '**Side effects:** each entry in `items` writes one `Order_Item` row in the same transaction as the order, so an unknown product id fails the whole request and no order is created. Repeat a `productId` to order more than one of it.\n\n' +
+      '**Side effects:** each entry in `items` writes one `Order_Item` row in the same transaction as the order, so an unknown product id fails the whole request and no order is created. Repeat a `productId` to order more than one of it. Every item starts at `OPEN` and is moved on through `/orders/{orderId}/items/{id}`.\n\n' +
       'An order may also be opened empty and filled later through `/orders/{orderId}/items`.',
   })
   @ApiCreatedResponse({

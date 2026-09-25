@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import type {
   CreateOrderDto,
+  PaginationQuery,
   UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
@@ -33,13 +34,19 @@ export class OrdersRepository {
     private readonly prisma: PrismaService,
   ) {}
 
-  async findAll(): Promise<OrderWithDetails[]> {
+  async findAll({
+    take,
+    skip,
+  }: PaginationQuery): Promise<OrderWithDetails[]> {
     return this.prisma.order.findMany({
       include: orderDetailsInclude,
 
       orderBy: {
         id: 'desc',
       },
+
+      take,
+      skip,
     });
   }
 

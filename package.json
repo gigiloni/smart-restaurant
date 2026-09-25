@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "nx run-many -t serve --projects=backend,gastro-ui --parallel=2",
+    "dev": "pnpm db:generate && nx run-many -t serve --projects=backend,gastro-ui --parallel=2",
+    "db:generate": "pnpm --dir backend exec prisma generate",
     "start:frontend": "nx serve gastro-ui",
-    "start:backend": "nx serve backend",
-    "build": "nx run-many -t build",
+    "start:backend": "pnpm db:generate && nx serve backend",
+    "build": "pnpm db:generate && nx run-many -t build",
     "lint": "nx run-many -t lint",
     "test": "nx run-many -t test",
     "format": "nx format:write",
@@ -68,6 +69,8 @@
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tslib": "^2.3.0",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.58.0"
+    "typescript-eslint": "^8.58.0",
+    "zod-openapi": "^6.0.2",
+    "prisma": "7.10.0"
   }
 }
