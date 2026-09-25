@@ -3,8 +3,7 @@ import { z } from 'zod';
 import { employeeRoleSchema } from './employee-role.schema.js';
 
 /**
- * Employees have no endpoints of their own yet; this shape documents the
- * employee embedded in an order.
+ * A member of staff, as returned by `/employees` and as embedded in an order.
  */
 export const employeeSchema = z
   .object({
@@ -19,7 +18,7 @@ export const employeeSchema = z
   .meta({
     id: 'Employee',
     title: 'Employee',
-    description: 'A member of staff. Read-only: there is no employee endpoint yet.',
+    description: 'A member of staff, who may be assigned to the orders they take.',
   });
 
 export type Employee = z.infer<typeof employeeSchema>;

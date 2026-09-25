@@ -78,7 +78,7 @@ model Order {
   employeeId Int? @map("employee_id")
 
   table      RestaurantTable @relation(fields: [tableId], references: [id])
-  employee   Employee?       @relation(fields: [employeeId], references: [id])
+  employee   Employee?       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   orderItems OrderItem[]
 
   @@map("Order")
