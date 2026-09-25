@@ -49,9 +49,12 @@ Example:
 
 ```env
 DATABASE_URL=postgresql://admin:admin@localhost:5432/smart_restaurant
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=<random secret with at least 32 characters>
+FRONTEND_URL=http://localhost:4200
 ```
 
-The Docker Compose configuration additionally uses the PostgreSQL and pgAdmin environment variables defined in this file.
+The Docker Compose configuration additionally uses the PostgreSQL and pgAdmin environment variables defined in this file. Generate a unique `BETTER_AUTH_SECRET` with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`; sessions cannot be verified without it. `FRONTEND_URL` is the optional trusted origin for the Angular dev server.
 
 ## Start database
 
@@ -320,13 +323,14 @@ trattoria with staff, tables, a menu with recipes, and orders spread across the
 kitchen workflow. It covers every enum variant, so each `ProductType`,
 `EmployeeRole` and `OrderItemStatus` value appears in the data.
 
-The file contains data only — apply the migrations first, then load it. With the
-compose stack running, no local `psql` is needed:
+Apply migrations, then run the Prisma seed from the repository root:
 
 ```bash
-docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
-  psql -U admin -d smart_restaurant < backend/prisma/seed.sql
+pnpm db:migrate
+pnpm db:seed
 ```
+
+The equivalent command from `backend/` is `pnpm exec prisma db seed`. Prisma runs `prisma/seed.mjs`, which loads the SQL over `DATABASE_URL`; Docker is only needed when PostgreSQL is run through Compose.
 
 With `psql` installed locally, load it directly instead:
 
@@ -334,9 +338,20 @@ With `psql` installed locally, load it directly instead:
 psql "$DATABASE_URL" -f backend/prisma/seed.sql
 ```
 
-Re-running is safe. Every table is truncated first and the identity sequences are
-reset afterwards, so ids stay stable across reloads and the next row the API
-writes does not collide with a seeded id.
+Re-running resets the sample tables, login accounts, and sessions, then resets the identity sequences. Use this only for disposable development data.
+
+### Create the first admin login
+
+The sample employees have no preset passwords. After seeding, create a login for the existing admin (employee 1). In PowerShell:
+
+```powershell
+$env:BOOTSTRAP_ADMIN_EMAIL = 'admin@example.com'
+$env:BOOTSTRAP_ADMIN_PASSWORD = '<your password of at least 12 characters>'
+pnpm db:bootstrap-admin
+Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD
+```
+
+The command refuses to run when an active admin already exists. Without sample data, also set `BOOTSTRAP_ADMIN_FIRSTNAME` and `BOOTSTRAP_ADMIN_LASTNAME` to create the first employee. Admins can then create employees with email/password via `POST /api/employees`, or activate an existing sample employee via `POST /api/employees/{id}/account`.
 
 ### Read an existing database schema
 
@@ -392,11 +407,12 @@ Build the shared contracts:
 pnpm nx build contracts
 ```
 
-Optionally load the sample data (see [Load the sample data](#load-the-sample-data)):
+Optionally load the sample data and create the first admin login (set the bootstrap credentials as described above):
 
 ```bash
-docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
-  psql -U admin -d smart_restaurant < backend/prisma/seed.sql
+pnpm db:migrate
+pnpm db:seed
+pnpm db:bootstrap-admin
 ```
 
 Start the backend:
@@ -434,11 +450,24 @@ schemas in the `contracts` library.
 | Resource | Routes |
 | --- | --- |
 | Tables | `GET` `POST` `/tables` · `GET` `PATCH` `DELETE` `/tables/:id` |
-| Employees | `GET` `POST` `/employees` · `GET` `PATCH` `DELETE` `/employees/:id` |
+| Employees | `GET` `POST` `/employees` · `GET` `/employees/me` · `GET` `PATCH` `DELETE` `/employees/:id` · `POST` `/employees/:id/account` |
 | Products | `GET` `POST` `/products` · `GET` `PATCH` `DELETE` `/products/:id` |
 | Ingredients | `GET` `POST` `/ingredients` · `GET` `PATCH` `DELETE` `/ingredients/:id` |
 | Orders | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id` |
 | Order items | `GET` `POST` `/orders/:orderId/items` · `GET` `PATCH` `DELETE` `/orders/:orderId/items/:id` |
+
+### Login and access rules
+
+Sign in with `POST /api/auth/sign-in/email` using `{ "email": "...", "password": "..." }`. Better Auth returns an HTTP-only session cookie. Send that cookie with subsequent API requests. `GET /api/auth/get-session`, `POST /api/auth/change-password`, and `POST /api/auth/sign-out` are also available. Public sign-up is disabled. All business routes require a login; an unauthenticated request gets `401`, while a logged-in user without permission gets `403`.
+
+| Role | Access |
+| --- | --- |
+| `ADMIN` | Full access, including employee CRUD, login activation, and role assignment. The last active admin cannot be deleted or demoted. |
+| `SERVICE` | Read all orders; create and change assigned orders and their items; update own profile without changing the role; mark any product type `SERVED` or `REMAKE` when its status transition permits it. |
+| `KITCHEN` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `FOOD` and `APPETIZER` items; update own profile without changing the role. |
+| `BAR` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `DRINK` items; update own profile without changing the role. |
+
+All signed-in staff can read tables, products, and ingredients. Only admins can change those resources. Employees can read their own profile; only admins can list all employees. Roles are read from the database for every request, so changes take effect immediately. There is no separate superuser role; the first admin is bootstrapped once and can appoint other admins.
 
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:

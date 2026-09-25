@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { configuration } from '../config/configuration.js';
 import { envSchema } from '../config/env.schema.js';
+import { AuthModule } from '../auth/auth.module.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { EmployeesModule } from '../employees/employees.module.js';
 import { IngredientsModule } from '../ingredients/ingredients.module.js';
@@ -20,6 +21,7 @@ import { TablesModule } from '../tables/tables.module.js';
     }),
 
     DatabaseModule,
+    AuthModule,
 
     EmployeesModule,
     IngredientsModule,

@@ -10,6 +10,11 @@ import {
   type UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
+import { ForbiddenException } from '@nestjs/common';
+import { AccessService } from '../auth/access.service.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+
 import {
   ApiEntityNotFoundResponse,
   ApiIdParam,
@@ -20,7 +25,10 @@ import { OrdersService } from './orders.service.js';
 @ApiTags('Orders')
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -66,7 +74,17 @@ export class OrdersController {
   @ApiValidationErrorResponse(
     'The payload failed validation, or a referenced table, employee or product does not exist.',
   )
-  create(@Body({ schema: createOrderSchema }) dto: CreateOrderDto) {
+  create(
+    @Body({ schema: createOrderSchema }) dto: CreateOrderDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireService(actor);
+    if (actor.role !== 'ADMIN') {
+      if (dto.employeeId !== undefined && dto.employeeId !== actor.id) {
+        throw new ForbiddenException('Service staff can only assign orders to themselves');
+      }
+      return this.ordersService.create({ ...dto, employeeId: actor.id });
+    }
     return this.ordersService.create(dto);
   }
 
@@ -83,10 +101,15 @@ export class OrdersController {
     '`id` is not a positive integer, the payload is empty or invalid, or a referenced table or employee does not exist.',
   )
   @ApiEntityNotFoundResponse('No order with that id exists.')
-  update(
+  async update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateOrderSchema }) dto: UpdateOrderDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
+    await this.access.requireOrderOwner(actor, id);
+    if (actor.role !== 'ADMIN' && dto.employeeId !== undefined) {
+      throw new ForbiddenException('Only admins can reassign orders');
+    }
     return this.ordersService.update(id, dto);
   }
 
@@ -105,7 +128,11 @@ export class OrdersController {
   })
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No order with that id exists.')
-  remove(@Param('id', { schema: idParamSchema }) id: number) {
+  async remove(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    await this.access.requireOrderOwner(actor, id);
     return this.ordersService.remove(id);
   }
 }
