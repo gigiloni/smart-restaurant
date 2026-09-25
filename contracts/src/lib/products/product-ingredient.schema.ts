@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { nonNegativeInt32Schema, positiveInt32Schema } from '../common/integer.schema.js';
+
 import { ingredientSchema } from '../ingredients/ingredient.schema.js';
 
 /**
@@ -8,12 +10,12 @@ import { ingredientSchema } from '../ingredients/ingredient.schema.js';
  */
 export const productIngredientSchema = z
   .object({
-    ingredientId: z.number().int().positive().meta({
+    ingredientId: positiveInt32Schema.meta({
       description: 'Id of an existing ingredient. Unknown ids are rejected with 400.',
       example: 1,
     }),
 
-    amount: z.number().int().nonnegative().default(0).meta({
+    amount: nonNegativeInt32Schema.default(0).meta({
       description: 'Quantity of the ingredient used, in whatever unit the kitchen works in.',
       example: 150,
     }),

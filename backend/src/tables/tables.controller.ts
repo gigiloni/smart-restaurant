@@ -56,10 +56,11 @@ export class TablesController {
   @ApiOperation({
     summary: 'Create a table',
     description:
-      'Adds a table to the restaurant. `tableNumber` is unique, so reusing an existing number fails on the unique index.',
+      'Adds a table to the restaurant. `tableNumber` is unique, so reusing an existing number is rejected with 409.',
   })
   @ApiCreatedResponse({ description: 'The created table.', standardSchema: tableSchema })
   @ApiValidationErrorResponse('The payload failed validation.')
+  @ApiEntityConflictResponse('Another table already uses that table number.')
   create(@Body({ schema: createTableSchema }) dto: CreateTableDto) {
     return this.tablesService.create(dto);
   }
@@ -68,12 +69,13 @@ export class TablesController {
   @ApiOperation({
     summary: 'Update a table',
     description:
-      'Updates the fields present in the payload. At least one field is required. `tableNumber` must stay unique across all tables.',
+      'Updates the fields present in the payload. At least one field is required. `tableNumber` must stay unique across all tables; taking a number another table already uses is rejected with 409.',
   })
   @ApiIdParam('id', 'Id of the table to update.')
   @ApiOkResponse({ description: 'The updated table.', standardSchema: tableSchema })
   @ApiValidationErrorResponse('`id` is not a positive integer, or the payload is empty or invalid.')
   @ApiEntityNotFoundResponse('No table with that id exists.')
+  @ApiEntityConflictResponse('Another table already uses that table number.')
   update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateTableSchema }) dto: UpdateTableDto,

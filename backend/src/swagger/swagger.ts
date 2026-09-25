@@ -16,6 +16,8 @@ const API_DESCRIPTION = [
   '  `@smart-restaurant/contracts` library, so the frontend and the backend agree on one definition.',
   '- Ids are auto-incrementing integers. Path parameters arrive as strings and are coerced, so',
   '  `/products/1` and `/products/01` address the same product, while `/products/abc` fails with 400.',
+  '- Every id, count and amount is a Postgres `integer`, so values are capped at 2147483647. A larger',
+  '  number is rejected as a bad request rather than failing inside the database.',
   '- No endpoint takes query parameters. Collections are returned whole: they are neither filtered',
   '  nor paginated.',
   '- `PATCH` is a partial update. Every field is optional, but an empty object is rejected with 400',
