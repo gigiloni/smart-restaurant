@@ -19,6 +19,7 @@ import { AccessService } from '../auth/access.service.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { lockOrder } from '../database/row-locks.js';
+import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { requireOpenOrder } from '../orders/order-guards.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.repository.js';
@@ -30,6 +31,7 @@ export class OrderItemsService {
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
     private readonly access: AccessService,
+    private readonly events: OrderEventsWriter,
   ) {}
 
   async findAll(orderId: number): Promise<OrderItemWithDetails[]> {
@@ -55,7 +57,11 @@ export class OrderItemsService {
       return await this.prisma.$transaction(async (tx) => {
         requireOpenOrder(await lockOrder(tx, orderId), orderId);
 
-        return this.orderItemsRepository.create(orderId, dto, tx);
+        const created = await this.orderItemsRepository.create(orderId, dto, tx);
+
+        await this.events.itemCreated(tx, created);
+
+        return created;
       });
     } catch (error) {
       if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation)) {
@@ -120,6 +126,8 @@ export class OrderItemsService {
         );
       }
 
+      await this.events.itemStatusChanged(tx, updated, orderItem.status);
+
       return updated;
     });
   }
@@ -134,7 +142,11 @@ export class OrderItemsService {
         throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
       }
 
-      return this.orderItemsRepository.remove(id, tx);
+      const removed = await this.orderItemsRepository.remove(id, tx);
+
+      await this.events.itemDeleted(tx, removed);
+
+      return removed;
     });
   }
 

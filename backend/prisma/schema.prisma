@@ -37,10 +37,10 @@ enum ProductType {
 }
 
 model Employee {
-  id        Int          @id @default(autoincrement()) @map("employee_id")
-  firstname String       @db.VarChar(100)
-  lastname  String       @db.VarChar(100)
-  role      EmployeeRole
+  id         Int          @id @default(autoincrement()) @map("employee_id")
+  firstname  String       @db.VarChar(100)
+  lastname   String       @db.VarChar(100)
+  role       EmployeeRole
   authUserId String?      @unique @map("auth_user_id")
   authUser   User?        @relation(fields: [authUserId], references: [id], onDelete: SetNull)
 
@@ -95,8 +95,8 @@ model Account {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  @@index([userId])
   @@unique([providerId, accountId])
+  @@index([userId])
   @@map("account")
 }
 
@@ -208,4 +208,46 @@ model ProductIngredient {
 
   @@id([productId, ingredientId])
   @@map("Product_Ingredient")
+}
+
+/// Every change to an order, an order item or a table session, written in the
+/// same transaction as the change itself: no event without its change, and no
+/// change without its event. Clients replay from here to catch up on anything
+/// they missed while disconnected.
+///
+/// Ids are not a sequence. They come from OrderEventCounter, whose row lock is
+/// held until commit, so ids are handed out in commit order and a reader that
+/// has seen event n has seen every event before it. A sequence would hand ids
+/// out at insert time, and a reader could move past an id whose transaction
+/// had not committed yet.
+///
+/// The scoping columns let a single query select exactly the events one viewer
+/// may see; there is deliberately no foreign key, because events outlive the
+/// rows they describe.
+model OrderEvent {
+  id             BigInt        @id @map("order_event_id")
+  type           String        @db.VarChar(40)
+  occurredAt     DateTime      @default(now()) @map("occurred_at")
+  tableSessionId Int           @map("table_session_id")
+  orderId        Int?          @map("order_id")
+  orderItemId    Int?          @map("order_item_id")
+  /// Set on item events: the product type of the item.
+  productType    ProductType?  @map("product_type")
+  /// Set on order and session events: every product type they contain.
+  productTypes   ProductType[] @map("product_types")
+  payload        Json
+
+  @@index([tableSessionId, id])
+  @@index([occurredAt])
+  @@map("Order_Event")
+}
+
+/// A single row holding the id of the last order event. Bumping it takes a row
+/// lock that is held until commit, which is what makes event ids follow commit
+/// order.
+model OrderEventCounter {
+  id    Int    @id @default(1)
+  value BigInt @default(0)
+
+  @@map("Order_Event_Counter")
 }

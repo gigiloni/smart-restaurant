@@ -10,6 +10,7 @@ import type { CreateOrderDto, PaginationQuery, UpdateOrderDto } from '@smart-res
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { lockOrder, lockTableSession } from '../database/row-locks.js';
+import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { TableSessionsService } from '../table-sessions/table-sessions.service.js';
 import { requireOpenOrder } from './order-guards.js';
 import { OrdersRepository, type OrderWithDetails } from './orders.repository.js';
@@ -20,6 +21,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly ordersRepository: OrdersRepository,
     private readonly tableSessionsService: TableSessionsService,
+    private readonly events: OrderEventsWriter,
   ) {}
 
   findAll(pagination: PaginationQuery): Promise<OrderWithDetails[]> {
@@ -58,10 +60,14 @@ export class OrdersService {
             return null;
           }
 
-          return this.ordersRepository.create(
+          const created = await this.ordersRepository.create(
             { ...dto, tableSessionId: locked.id, tableId: locked.tableId },
             tx,
           );
+
+          await this.events.orderCreated(tx, created);
+
+          return created;
         });
 
         if (order) {
@@ -84,7 +90,11 @@ export class OrdersService {
       return await this.prisma.$transaction(async (tx) => {
         requireOpenOrder(await lockOrder(tx, id), id);
 
-        return this.ordersRepository.update(id, dto, tx);
+        const updated = await this.ordersRepository.update(id, dto, tx);
+
+        await this.events.orderUpdated(tx, updated);
+
+        return updated;
       });
     } catch (error) {
       throw this.mapUnknownReference(error);
@@ -116,7 +126,11 @@ export class OrdersService {
         );
       }
 
-      return this.ordersRepository.close(id, tx);
+      const closed = await this.ordersRepository.close(id, tx);
+
+      await this.events.orderClosed(tx, closed);
+
+      return closed;
     });
   }
 
@@ -124,7 +138,14 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       requireOpenOrder(await lockOrder(tx, id), id);
 
-      return this.ordersRepository.remove(id, tx);
+      // The delete returns the order with its items as they were, and the
+      // cascade removes those items in the same statement, so this one event
+      // accounts for every item that disappears with it.
+      const removed = await this.ordersRepository.remove(id, tx);
+
+      await this.events.orderDeleted(tx, removed);
+
+      return removed;
     });
   }
 

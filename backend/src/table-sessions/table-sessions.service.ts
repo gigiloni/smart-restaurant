@@ -8,6 +8,7 @@ import {
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { lockTableSession } from '../database/row-locks.js';
+import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import {
   TableSessionsRepository,
   type TableSessionWithDetails,
@@ -26,6 +27,7 @@ export class TableSessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tableSessionsRepository: TableSessionsRepository,
+    private readonly events: OrderEventsWriter,
   ) {}
 
   findOpen(): Promise<TableSessionWithTable[]> {
@@ -55,10 +57,15 @@ export class TableSessionsService {
     }
 
     try {
-      return {
-        session: await this.tableSessionsRepository.create(tableId),
-        created: true,
-      };
+      const session = await this.prisma.$transaction(async (tx) => {
+        const opened = await this.tableSessionsRepository.create(tableId, tx);
+
+        await this.events.sessionOpened(tx, opened);
+
+        return opened;
+      });
+
+      return { session, created: true };
     } catch (error) {
       // Two guests scanned at the same moment and both saw a free table. The
       // partial unique index let exactly one of them open it; join that one.
@@ -92,7 +99,9 @@ export class TableSessionsService {
         }
 
         if (session.tableId !== tableId) {
-          await this.tableSessionsRepository.move(id, tableId, tx);
+          const moved = await this.tableSessionsRepository.move(id, tableId, tx);
+
+          await this.events.sessionMoved(tx, moved, session.tableId);
         }
       });
     } catch (error) {
@@ -135,7 +144,9 @@ export class TableSessionsService {
         );
       }
 
-      await this.tableSessionsRepository.close(id, tx);
+      const closed = await this.tableSessionsRepository.close(id, tx);
+
+      await this.events.sessionClosed(tx, closed);
     });
 
     return this.findOne(id);
