@@ -12,7 +12,9 @@ const API_DESCRIPTION = [
   '### Conventions',
   '',
   '- Every route is served under the `/api` prefix.',
-  '- Business routes require a Better Auth session cookie. Sign in at `POST /api/auth/sign-in/email`.',
+  '- Business routes require a Better Auth session cookie. In this Swagger UI, run',
+  '  **Authentication → Sign in** with Try it out, then test the business routes in the same browser tab.',
+  '  The browser stores the HTTP-only cookie; do not enter its value in Authorize.',
   '- Role and ownership checks return 403; missing or expired sessions return 401.',
   '- Request bodies and path parameters are validated against the Zod schemas in the shared',
   '  `@smart-restaurant/contracts` library, so the frontend and the backend agree on one definition.',
@@ -88,6 +90,7 @@ export function setupSwagger(app: INestApplication): void {
       "One party's time at a table, from the first QR scan until service clears it. Orders belong to a session.",
     )
     .addTag('Orders', 'Orders placed by the party at a table, and paid one at a time.')
+    .addTag('Authentication', 'Better Auth email/password session endpoints.')
     .addTag(
       'Order items',
       'Individual items on an order, and their progress through the kitchen. Nested under the order that owns them.',
@@ -112,8 +115,59 @@ export function setupSwagger(app: INestApplication): void {
 
   const document = SwaggerModule.createDocument(app, config, documentOptions);
 
+  // Better Auth owns these Fastify routes, so Nest cannot discover them from
+  // controller decorators. Document the login that sets the browser cookie.
+  document.paths['/api/auth/sign-in/email'] = {
+    post: {
+      tags: ['Authentication'],
+      summary: 'Sign in with email and password',
+      description:
+        'Use Try it out from this Swagger page. A successful response sets the HTTP-only session cookie; subsequent requests from this page send it automatically.',
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['email', 'password'],
+              properties: {
+                email: { type: 'string', format: 'email' },
+                password: { type: 'string', format: 'password' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Signed in. The browser stores the session cookie.',
+          headers: {
+            'Set-Cookie': {
+              description: 'HTTP-only Better Auth session cookie.',
+              schema: { type: 'string' },
+            },
+          },
+        },
+        '401': { description: 'Invalid email or password.' },
+      },
+    },
+  };
+
+  document.paths['/api/auth/sign-out'] = {
+    post: {
+      tags: ['Authentication'],
+      summary: 'Sign out',
+      description: 'Clears the current session cookie.',
+      responses: {
+        '200': { description: 'Signed out.' },
+      },
+    },
+  };
+
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: {
+      withCredentials: true,
       // Deep-linkable operations, and schemas expanded far enough to read a
       // nested order without clicking through every level.
       deepLinking: true,
