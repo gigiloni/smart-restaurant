@@ -7,6 +7,7 @@ import { AuthModule } from '../auth/auth.module.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { EmployeesModule } from '../employees/employees.module.js';
 import { IngredientsModule } from '../ingredients/ingredients.module.js';
+import { LiveModule } from '../live/live.module.js';
 import { OrderEventsModule } from '../order-events/order-events.module.js';
 import { OrderItemsModule } from '../order-items/order-items.module.js';
 import { OrdersModule } from '../orders/orders.module.js';
@@ -29,6 +30,7 @@ import { ViewerModule } from '../viewer/viewer.module.js';
 
     EmployeesModule,
     IngredientsModule,
+    LiveModule,
     OrderItemsModule,
     OrdersModule,
     ProductsModule,

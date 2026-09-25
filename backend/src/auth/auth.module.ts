@@ -5,6 +5,7 @@ import { AccessService } from './access.service.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { GuestAccessService } from './guest-access.service.js';
+import { ViewerResolver } from './viewer-resolver.service.js';
 
 @Global()
 @Module({
@@ -12,8 +13,9 @@ import { GuestAccessService } from './guest-access.service.js';
     AuthService,
     AccessService,
     GuestAccessService,
+    ViewerResolver,
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [AuthService, AccessService, GuestAccessService],
+  exports: [AuthService, AccessService, GuestAccessService, ViewerResolver],
 })
 export class AuthModule {}

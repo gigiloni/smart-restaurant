@@ -20,7 +20,8 @@ const API_DESCRIPTION = [
   '- Role and ownership checks return 403; missing or expired sessions return 401.',
   "- Guests have no login. The guest app sends the `tableId` and `token` from the table's QR code to",
   '  `POST /viewer/guest`, which sets the HTTP-only `sr_guest` cookie. Only routes that say so accept',
-  '  it: the menu (`GET /products`) and `GET /viewer`. It stops working when service clears the table.',
+  '  it: the menu (`GET /products`), the live updates (`/live/*`) and `GET /viewer`. It stops working',
+  '  when service clears the table.',
   '- Request bodies and path parameters are validated against the Zod schemas in the shared',
   '  `@smart-restaurant/contracts` library, so the frontend and the backend agree on one definition.',
   '- Ids are auto-incrementing integers. Path parameters arrive as strings and are coerced, so',
@@ -55,6 +56,12 @@ const API_DESCRIPTION = [
   '  the order is frozen from then on.',
   '- `POST /table-sessions/{id}/close` clears the table once every order in the session is paid.',
   '- `PATCH /table-sessions/{id}` moves the whole party, orders included, to a free table.',
+  '',
+  '### Live updates',
+  '',
+  'Load `GET /live/snapshot`, then open `GET /live/events?since=<cursor>` with an `EventSource`. The stream',
+  'sends every change after the snapshot that the caller may see, and resumes from `Last-Event-ID` after a',
+  'dropped connection, so no update is lost. The details are on the two routes.',
   '',
   '### Order item status',
   '',
@@ -96,6 +103,10 @@ export function setupSwagger(app: INestApplication): void {
     )
     .addTag('Orders', 'Orders placed by the party at a table, and paid one at a time.')
     .addTag('Authentication', 'Better Auth email/password session endpoints.')
+    .addTag(
+      'Live',
+      'Realtime orders: a consistent snapshot, then a Server-Sent Events stream of every change after it, scoped to the caller.',
+    )
     .addTag('Viewer', 'Who is asking: staff by login, guests by the QR code on their table.')
     .addTag(
       'Order items',

@@ -498,9 +498,10 @@ table, or seats a new one if the table is free, and sets the HTTP-only
 That cookie is bound to the party's table session, not the table. It follows the
 party when service moves them, and stops working the moment service clears the
 table, so the next party at the table is out of reach. Guests can reach only
-routes marked for them: the menu (`GET /api/products`, `GET /api/products/:id`)
-and `GET /api/viewer`, which returns who the caller is, staff or guest. Every
-other route answers a guest with `401`.
+routes marked for them: the menu (`GET /api/products`, `GET /api/products/:id`),
+the live updates for their table (`GET /api/live/snapshot`,
+`GET /api/live/events`), and `GET /api/viewer`, which returns who the caller is,
+staff or guest. Every other route answers a guest with `401`.
 
 The token and the cookie are HMACs under a key derived from
 `BETTER_AUTH_SECRET`. Changing that secret invalidates every printed QR code.
@@ -557,7 +558,8 @@ created in the migration, since Prisma cannot express it, and an order's
 Every change to a table session, an order or an order item is also recorded as
 an **order event**, in the same transaction as the change itself. The event log
 (`Order_Event`) is what the live updates replay from, so a client that was
-disconnected can catch up on exactly what it missed.
+disconnected can catch up on exactly what it missed. See
+[Live updates](#live-updates).
 
 | Event | Written when |
 | --- | --- |
@@ -575,6 +577,63 @@ takes a row lock held until commit, so ids are handed out in commit order: once
 event *n* is visible, every event before it is too, and the last id a client has
 applied is a complete cursor. The event shapes live in `contracts`
 (`orderEventSchema`).
+
+### Live updates
+
+Clients stay current in two steps: load a snapshot, then stream every change
+after it over Server-Sent Events.
+
+```ts
+const snapshot = await fetch('/api/live/snapshot', { credentials: 'include' }).then((r) => r.json());
+render(snapshot.sessions, snapshot.orders);
+
+const events = new EventSource(`/api/live/events?since=${snapshot.cursor}`, { withCredentials: true });
+events.addEventListener('item.status_changed', (e) => apply(JSON.parse(e.data)));
+// ...one listener per event type, or a shared handler
+events.addEventListener('resync', () => {
+  events.close();
+  // reload the snapshot and reconnect with its cursor
+});
+```
+
+- **Consistent start.** The snapshot is read in one `REPEATABLE READ`
+  transaction together with the event counter, so it reflects exactly the
+  events up to `cursor`. Streaming from `cursor` neither repeats nor skips a
+  change.
+- **No lost updates.** Every message's SSE `id` is its event id. When the
+  connection drops, the browser reconnects with `Last-Event-ID`, and the stream
+  resumes right after the last message received. Event ids have no gaps, so the
+  server notices if anything it should send is missing. It then sends `resync`
+  instead of skipping ahead. Events are kept for 24 hours.
+- **Replace, don't merge.** Every event carries the whole entity after the
+  change, or before it for deletions. Applying one is a replace, and applying
+  one twice is harmless. On `session.moved`, update the table of every order in
+  that session.
+- **Control messages.** `ready` means the backlog has been sent and the client is
+  live. `resync` gives a reason and closes the stream; the client must close
+  its `EventSource` too, or the browser reconnects into the same `resync`. A
+  comment line every 15 seconds keeps idle connections open through proxies.
+
+Who sees what:
+
+| Viewer | Snapshot and events |
+| --- | --- |
+| `SERVICE`, `ADMIN` | Everything: every open session and all of its orders, paid ones included. |
+| `KITCHEN` | Open orders holding `APPETIZER` or `FOOD` items, with only those items. Item events for those types. Order and move events for orders that hold them. No `session.opened` or `session.closed`. |
+| `BAR` | The same for `DRINK` items. |
+
+Kitchen and bar clients should hide orders that have no items. An order stays
+in their state, empty, after its last item for their station is deleted.
+| Guest | Their own table session only. `employeeId` and `employee` are always null. The stream ends after `session.closed`. |
+
+A long-lived stream re-checks its login or guest cookie every minute. It ends
+after sign-out and sends `resync` if the employee's role changed.
+
+Behind the stream is one shared reader per server. It holds a `LISTEN`
+connection, and on each commit-time `NOTIFY` it reads the new events from
+`Order_Event` once for every connected client. It also polls every 5 seconds in
+case a notification was missed, and it reconnects on its own if the connection
+drops.
 
 ### Order item status
 

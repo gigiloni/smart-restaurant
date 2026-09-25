@@ -59,7 +59,10 @@ const envelope = {
       'Event id, and the SSE `id:` field. Ids increase in commit order with no event ever committing behind one already delivered, so the last id a client has applied is a complete cursor.',
   }),
 
-  occurredAt: timestampSchema.meta({ description: 'When the change was committed.' }),
+  occurredAt: timestampSchema.meta({
+    description:
+      'When the transaction that made the change started. Use `id`, not this, to order events.',
+  }),
 };
 
 const sessionData = z.object({ session: tableSessionSchema });
