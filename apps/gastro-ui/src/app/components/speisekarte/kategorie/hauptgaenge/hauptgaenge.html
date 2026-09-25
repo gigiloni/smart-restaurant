@@ -1,0 +1,7 @@
+<p-dataview [value]="produkte()">
+  <ng-template #list let-produkte>
+    @for (produkt of produkte; track produkt.id) {
+      <div>{{ produkt.name }}</div>
+    }
+  </ng-template>
+</p-dataview>
