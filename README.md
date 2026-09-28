@@ -537,3 +537,9 @@ referenced protect their referent:
 | Delete a product that is on an order | `409 Conflict` |
 | Delete an ingredient used by a product | `409 Conflict` |
 | Delete an employee who has taken an order | `409 Conflict` |
+
+
+### Export Git History
+```bash
+git -c core.quotepath=false log --all --since="2026-08-17" --no-merges --reverse --date=short --pretty=format:"%ad | %an | %s" --name-status | Out-File -Encoding utf8 commits.txt
+```

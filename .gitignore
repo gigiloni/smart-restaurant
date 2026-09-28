@@ -50,3 +50,4 @@ backend/.env
 .angular
 _tmp_*
 .pnpm-lock.yaml.*.tmp
+commits.txt
