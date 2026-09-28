@@ -6,8 +6,9 @@ import {
 } from '@nestjs/common';
 
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
-import { PrismaService } from '../database/prisma.service.js';
-import { lockTableSession } from '../database/row-locks.js';
+import { Propagation, Transactional } from '@nestjs-cls/transactional';
+
+import { RowLocks } from '../database/row-locks.js';
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import {
   TableSessionsRepository,
@@ -25,9 +26,9 @@ export interface OpenedTableSession {
 @Injectable()
 export class TableSessionsService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly tableSessionsRepository: TableSessionsRepository,
+    private readonly locks: RowLocks,
     private readonly events: OrderEventsWriter,
+    private readonly tableSessionsRepository: TableSessionsRepository,
   ) {}
 
   findOpen(): Promise<TableSessionWithTable[]> {
@@ -48,7 +49,12 @@ export class TableSessionsService {
    * Joins the table's open session, or opens one if the table is free. Every
    * guest scanning the same QR code must land in the same session, so this is
    * idempotent rather than always creating.
+   *
+   * Must not run inside a transaction: when two scans race, the loser's insert
+   * fails, and it then has to read the winner's session. Inside a transaction
+   * that failure would have aborted everything (`Propagation.Never`).
    */
+  @Transactional(Propagation.Never)
   async openOrJoin(tableId: number): Promise<OpenedTableSession> {
     const existing = await this.tableSessionsRepository.findOpenByTable(tableId);
 
@@ -57,15 +63,7 @@ export class TableSessionsService {
     }
 
     try {
-      const session = await this.prisma.$transaction(async (tx) => {
-        const opened = await this.tableSessionsRepository.create(tableId, tx);
-
-        await this.events.sessionOpened(tx, opened);
-
-        return opened;
-      });
-
-      return { session, created: true };
+      return { session: await this.openSession(tableId), created: true };
     } catch (error) {
       // Two guests scanned at the same moment and both saw a free table. The
       // partial unique index let exactly one of them open it; join that one.
@@ -87,23 +85,7 @@ export class TableSessionsService {
 
   async move(id: number, tableId: number): Promise<TableSessionWithDetails> {
     try {
-      await this.prisma.$transaction(async (tx) => {
-        const session = await lockTableSession(tx, id);
-
-        if (!session) {
-          throw new NotFoundException(`Table session ${id} not found`);
-        }
-
-        if (session.closedAt) {
-          throw new ConflictException(`Table session ${id} is closed: its table has been cleared`);
-        }
-
-        if (session.tableId !== tableId) {
-          const moved = await this.tableSessionsRepository.move(id, tableId, tx);
-
-          await this.events.sessionMoved(tx, moved, session.tableId);
-        }
-      });
+      await this.moveOpenSession(id, tableId);
     } catch (error) {
       if (isPrismaError(error, PrismaErrorCode.UniqueConstraintViolation)) {
         throw new ConflictException(`Table ${tableId} already has a seated party`);
@@ -125,30 +107,61 @@ export class TableSessionsService {
    * Clearing an already cleared table is accepted, so a retried request is safe.
    */
   async close(id: number): Promise<TableSessionWithDetails> {
-    await this.prisma.$transaction(async (tx) => {
-      const session = await lockTableSession(tx, id);
-
-      if (!session) {
-        throw new NotFoundException(`Table session ${id} not found`);
-      }
-
-      if (session.closedAt) {
-        return;
-      }
-
-      const openOrders = await this.tableSessionsRepository.countOpenOrders(id, tx);
-
-      if (openOrders > 0) {
-        throw new ConflictException(
-          `Table session ${id} still has ${openOrders} unpaid order${openOrders === 1 ? '' : 's'}: close ${openOrders === 1 ? 'it' : 'them'} before clearing the table`,
-        );
-      }
-
-      const closed = await this.tableSessionsRepository.close(id, tx);
-
-      await this.events.sessionClosed(tx, closed);
-    });
+    await this.closeOpenSession(id);
 
     return this.findOne(id);
+  }
+
+  @Transactional()
+  private async openSession(tableId: number): Promise<TableSessionWithTable> {
+    const opened = await this.tableSessionsRepository.create(tableId);
+
+    await this.events.sessionOpened(opened);
+
+    return opened;
+  }
+
+  @Transactional()
+  private async moveOpenSession(id: number, tableId: number): Promise<void> {
+    const session = await this.locks.tableSession(id);
+
+    if (!session) {
+      throw new NotFoundException(`Table session ${id} not found`);
+    }
+
+    if (session.closedAt) {
+      throw new ConflictException(`Table session ${id} is closed: its table has been cleared`);
+    }
+
+    if (session.tableId !== tableId) {
+      const moved = await this.tableSessionsRepository.move(id, tableId);
+
+      await this.events.sessionMoved(moved, session.tableId);
+    }
+  }
+
+  @Transactional()
+  private async closeOpenSession(id: number): Promise<void> {
+    const session = await this.locks.tableSession(id);
+
+    if (!session) {
+      throw new NotFoundException(`Table session ${id} not found`);
+    }
+
+    if (session.closedAt) {
+      return;
+    }
+
+    const openOrders = await this.tableSessionsRepository.countOpenOrders(id);
+
+    if (openOrders > 0) {
+      throw new ConflictException(
+        `Table session ${id} still has ${openOrders} unpaid order${openOrders === 1 ? '' : 's'}: close ${openOrders === 1 ? 'it' : 'them'} before clearing the table`,
+      );
+    }
+
+    const closed = await this.tableSessionsRepository.close(id);
+
+    await this.events.sessionClosed(closed);
   }
 }

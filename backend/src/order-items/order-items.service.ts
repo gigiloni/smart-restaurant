@@ -17,8 +17,9 @@ import {
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { AccessService } from '../auth/access.service.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
-import { PrismaService } from '../database/prisma.service.js';
-import { lockOrder } from '../database/row-locks.js';
+import { Transactional } from '@nestjs-cls/transactional';
+
+import { RowLocks } from '../database/row-locks.js';
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { requireOpenOrder } from '../orders/order-guards.js';
 import { OrdersService } from '../orders/orders.service.js';
@@ -27,11 +28,11 @@ import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.r
 @Injectable()
 export class OrderItemsService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly locks: RowLocks,
+    private readonly events: OrderEventsWriter,
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
     private readonly access: AccessService,
-    private readonly events: OrderEventsWriter,
   ) {}
 
   async findAll(orderId: number): Promise<OrderItemWithDetails[]> {
@@ -54,15 +55,7 @@ export class OrderItemsService {
 
   async create(orderId: number, dto: CreateOrderItemDto): Promise<OrderItemWithDetails> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        requireOpenOrder(await lockOrder(tx, orderId), orderId);
-
-        const created = await this.orderItemsRepository.create(orderId, dto, tx);
-
-        await this.events.itemCreated(tx, created);
-
-        return created;
-      });
+      return await this.addToOpenOrder(orderId, dto);
     } catch (error) {
       if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation)) {
         throw new BadRequestException(`Product ${dto.productId} does not exist`);
@@ -77,77 +70,80 @@ export class OrderItemsService {
    * classified against the status it really has: a concurrent change either
    * finished before this one read the item, or waits until this one is done.
    */
-  update(
+  @Transactional()
+  async update(
     orderId: number,
     id: number,
     dto: UpdateOrderItemDto,
     actor: AuthenticatedEmployee,
   ): Promise<OrderItemWithDetails> {
-    return this.prisma.$transaction(async (tx) => {
-      requireOpenOrder(await lockOrder(tx, orderId), orderId);
+    requireOpenOrder(await this.locks.order(orderId), orderId);
 
-      const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id, tx);
+    const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id);
 
-      if (!orderItem) {
-        throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
-      }
+    if (!orderItem) {
+      throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
+    }
 
-      this.access.requireStatusChange(actor, orderItem.product.type, dto.status);
+    this.access.requireStatusChange(actor, orderItem.product.type, dto.status);
 
-      const kind = classifyOrderItemTransition(
-        orderItem.status,
-        dto.status,
-        orderItem.product.type,
+    const kind = classifyOrderItemTransition(orderItem.status, dto.status, orderItem.product.type);
+
+    if (kind === null) {
+      throw new ConflictException(
+        this.describeRejectedTransition(id, orderItem.status, dto.status, orderItem.product.type),
       );
+    }
 
-      if (kind === null) {
-        throw new ConflictException(
-          this.describeRejectedTransition(id, orderItem.status, dto.status, orderItem.product.type),
-        );
-      }
+    // Re-sending the current status is accepted so a retried request is
+    // safe, but there is nothing to write.
+    if (kind === 'unchanged') {
+      return orderItem;
+    }
 
-      // Re-sending the current status is accepted so a retried request is
-      // safe, but there is nothing to write.
-      if (kind === 'unchanged') {
-        return orderItem;
-      }
+    const updated = await this.orderItemsRepository.updateWhenStatusIs(id, orderItem.status, dto);
 
-      const updated = await this.orderItemsRepository.updateWhenStatusIs(
-        id,
-        orderItem.status,
-        dto,
-        tx,
+    if (updated === null) {
+      throw new ConflictException(
+        `Order item ${id} was changed by another request while this one was in flight. ` +
+          `Re-read the item and retry against its current status.`,
       );
+    }
 
-      if (updated === null) {
-        throw new ConflictException(
-          `Order item ${id} was changed by another request while this one was in flight. ` +
-            `Re-read the item and retry against its current status.`,
-        );
-      }
+    await this.events.itemStatusChanged(updated, orderItem.status);
 
-      await this.events.itemStatusChanged(tx, updated, orderItem.status);
-
-      return updated;
-    });
+    return updated;
   }
 
-  remove(orderId: number, id: number): Promise<OrderItemWithDetails> {
-    return this.prisma.$transaction(async (tx) => {
-      requireOpenOrder(await lockOrder(tx, orderId), orderId);
+  @Transactional()
+  async remove(orderId: number, id: number): Promise<OrderItemWithDetails> {
+    requireOpenOrder(await this.locks.order(orderId), orderId);
 
-      const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id, tx);
+    const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id);
 
-      if (!orderItem) {
-        throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
-      }
+    if (!orderItem) {
+      throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
+    }
 
-      const removed = await this.orderItemsRepository.remove(id, tx);
+    const removed = await this.orderItemsRepository.remove(id);
 
-      await this.events.itemDeleted(tx, removed);
+    await this.events.itemDeleted(removed);
 
-      return removed;
-    });
+    return removed;
+  }
+
+  @Transactional()
+  private async addToOpenOrder(
+    orderId: number,
+    dto: CreateOrderItemDto,
+  ): Promise<OrderItemWithDetails> {
+    requireOpenOrder(await this.locks.order(orderId), orderId);
+
+    const created = await this.orderItemsRepository.create(orderId, dto);
+
+    await this.events.itemCreated(created);
+
+    return created;
   }
 
   /**
