@@ -6,8 +6,9 @@ import type {
   UpdateOrderItemDto,
 } from '@smart-restaurant/contracts';
 
-import type { Db } from '../database/db.js';
-import { PrismaService } from '../database/prisma.service.js';
+import { TransactionHost } from '@nestjs-cls/transactional';
+
+import type { PrismaAdapter } from '../database/transaction.js';
 import { Prisma } from '../generated/prisma/client.js';
 
 const orderItemDetailsInclude = {
@@ -20,10 +21,15 @@ export type OrderItemWithDetails = Prisma.OrderItemGetPayload<{
 
 @Injectable()
 export class OrderItemsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
+
+  /** The current transaction's client, or the plain client outside one. */
+  private get db() {
+    return this.txHost.tx;
+  }
 
   findAllByOrder(orderId: number): Promise<OrderItemWithDetails[]> {
-    return this.prisma.orderItem.findMany({
+    return this.db.orderItem.findMany({
       where: {
         orderId,
       },
@@ -40,12 +46,8 @@ export class OrderItemsRepository {
    * Scoped by `orderId` so an item can never be read or written through the
    * wrong order.
    */
-  findByOrderAndId(
-    orderId: number,
-    id: number,
-    db: Db = this.prisma,
-  ): Promise<OrderItemWithDetails | null> {
-    return db.orderItem.findFirst({
+  findByOrderAndId(orderId: number, id: number): Promise<OrderItemWithDetails | null> {
+    return this.db.orderItem.findFirst({
       where: {
         id,
         orderId,
@@ -55,8 +57,8 @@ export class OrderItemsRepository {
     });
   }
 
-  create(orderId: number, dto: CreateOrderItemDto, db: Db): Promise<OrderItemWithDetails> {
-    return db.orderItem.create({
+  create(orderId: number, dto: CreateOrderItemDto): Promise<OrderItemWithDetails> {
+    return this.db.orderItem.create({
       data: {
         ...dto,
         orderId,
@@ -79,9 +81,8 @@ export class OrderItemsRepository {
     id: number,
     expectedStatus: OrderItemStatus,
     dto: UpdateOrderItemDto,
-    db: Db,
   ): Promise<OrderItemWithDetails | null> {
-    const { count } = await db.orderItem.updateMany({
+    const { count } = await this.db.orderItem.updateMany({
       where: {
         id,
         status: expectedStatus,
@@ -94,7 +95,7 @@ export class OrderItemsRepository {
       return null;
     }
 
-    return db.orderItem.findUnique({
+    return this.db.orderItem.findUnique({
       where: {
         id,
       },
@@ -103,8 +104,8 @@ export class OrderItemsRepository {
     });
   }
 
-  remove(id: number, db: Db): Promise<OrderItemWithDetails> {
-    return db.orderItem.delete({
+  remove(id: number): Promise<OrderItemWithDetails> {
+    return this.db.orderItem.delete({
       where: {
         id,
       },

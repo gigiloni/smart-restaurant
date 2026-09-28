@@ -8,8 +8,9 @@ import {
 import type { CreateOrderDto, PaginationQuery, UpdateOrderDto } from '@smart-restaurant/contracts';
 
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
-import { PrismaService } from '../database/prisma.service.js';
-import { lockOrder, lockTableSession } from '../database/row-locks.js';
+import { Propagation, Transactional } from '@nestjs-cls/transactional';
+
+import { RowLocks } from '../database/row-locks.js';
 import { TableSessionsService } from '../table-sessions/table-sessions.service.js';
 import { requireOpenOrder } from './order-guards.js';
 import { OrdersRepository, type OrderWithDetails } from './orders.repository.js';
@@ -17,7 +18,7 @@ import { OrdersRepository, type OrderWithDetails } from './orders.repository.js'
 @Injectable()
 export class OrdersService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly locks: RowLocks,
     private readonly ordersRepository: OrdersRepository,
     private readonly tableSessionsService: TableSessionsService,
   ) {}
@@ -45,24 +46,17 @@ export class OrdersService {
    * locking it, the party has left by definition, so the order belongs to the
    * next one: seat a new party and place it there. One retry is enough; a table
    * cleared twice within a single request is reported instead.
+   *
+   * Seating and placing are two transactions, so this must not run inside
+   * another one (`Propagation.Never` enforces that).
    */
+  @Transactional(Propagation.Never)
   async create({ tableId, ...dto }: CreateOrderDto): Promise<OrderWithDetails> {
     for (let attempt = 1; ; attempt++) {
       const { session } = await this.tableSessionsService.openOrJoin(tableId);
 
       try {
-        const order = await this.prisma.$transaction(async (tx) => {
-          const locked = await lockTableSession(tx, session.id);
-
-          if (!locked || locked.closedAt) {
-            return null;
-          }
-
-          return this.ordersRepository.create(
-            { ...dto, tableSessionId: locked.id, tableId: locked.tableId },
-            tx,
-          );
-        });
+        const order = await this.placeInSession(session.id, dto);
 
         if (order) {
           return order;
@@ -79,16 +73,38 @@ export class OrdersService {
     }
   }
 
+  /** The order, or null if the session was cleared before its lock was taken. */
+  @Transactional()
+  private async placeInSession(
+    tableSessionId: number,
+    dto: Omit<CreateOrderDto, 'tableId'>,
+  ): Promise<OrderWithDetails | null> {
+    const locked = await this.locks.tableSession(tableSessionId);
+
+    if (!locked || locked.closedAt) {
+      return null;
+    }
+
+    return this.ordersRepository.create({
+      ...dto,
+      tableSessionId: locked.id,
+      tableId: locked.tableId,
+    });
+  }
+
   async update(id: number, dto: UpdateOrderDto): Promise<OrderWithDetails> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        requireOpenOrder(await lockOrder(tx, id), id);
-
-        return this.ordersRepository.update(id, dto, tx);
-      });
+      return await this.updateOpenOrder(id, dto);
     } catch (error) {
       throw this.mapUnknownReference(error);
     }
+  }
+
+  @Transactional()
+  private async updateOpenOrder(id: number, dto: UpdateOrderDto): Promise<OrderWithDetails> {
+    requireOpenOrder(await this.locks.order(id), id);
+
+    return this.ordersRepository.update(id, dto);
   }
 
   /**
@@ -96,36 +112,34 @@ export class OrdersService {
    * reached the table first. Closing an already closed order is accepted, so a
    * retried request is safe.
    */
-  close(id: number): Promise<OrderWithDetails> {
-    return this.prisma.$transaction(async (tx) => {
-      const order = await lockOrder(tx, id);
+  @Transactional()
+  async close(id: number): Promise<OrderWithDetails> {
+    const order = await this.locks.order(id);
 
-      if (!order) {
-        throw new NotFoundException(`Order ${id} not found`);
-      }
+    if (!order) {
+      throw new NotFoundException(`Order ${id} not found`);
+    }
 
-      if (order.status === 'CLOSED') {
-        return this.ordersRepository.findById(id, tx) as Promise<OrderWithDetails>;
-      }
+    if (order.status === 'CLOSED') {
+      return this.ordersRepository.findById(id) as Promise<OrderWithDetails>;
+    }
 
-      const unserved = await this.ordersRepository.countUnservedItems(id, tx);
+    const unserved = await this.ordersRepository.countUnservedItems(id);
 
-      if (unserved > 0) {
-        throw new ConflictException(
-          `Order ${id} still has ${unserved} item${unserved === 1 ? '' : 's'} that ${unserved === 1 ? 'has' : 'have'} not been served: an order can only be paid once everything on it has reached the table`,
-        );
-      }
+    if (unserved > 0) {
+      throw new ConflictException(
+        `Order ${id} still has ${unserved} item${unserved === 1 ? '' : 's'} that ${unserved === 1 ? 'has' : 'have'} not been served: an order can only be paid once everything on it has reached the table`,
+      );
+    }
 
-      return this.ordersRepository.close(id, tx);
-    });
+    return this.ordersRepository.close(id);
   }
 
-  remove(id: number): Promise<OrderWithDetails> {
-    return this.prisma.$transaction(async (tx) => {
-      requireOpenOrder(await lockOrder(tx, id), id);
+  @Transactional()
+  async remove(id: number): Promise<OrderWithDetails> {
+    requireOpenOrder(await this.locks.order(id), id);
 
-      return this.ordersRepository.remove(id, tx);
-    });
+    return this.ordersRepository.remove(id);
   }
 
   /**

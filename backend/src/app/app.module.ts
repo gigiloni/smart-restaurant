@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ClsPluginTransactional } from '@nestjs-cls/transactional';
+import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
+import { ClsModule } from 'nestjs-cls';
 
 import { configuration } from '../config/configuration.js';
 import { envSchema } from '../config/env.schema.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { DatabaseModule } from '../database/database.module.js';
+import { PrismaService } from '../database/prisma.service.js';
 import { EmployeesModule } from '../employees/employees.module.js';
 import { IngredientsModule } from '../ingredients/ingredients.module.js';
 import { OrderItemsModule } from '../order-items/order-items.module.js';
@@ -22,6 +26,16 @@ import { TablesModule } from '../tables/tables.module.js';
     }),
 
     DatabaseModule,
+    // `@Transactional()` and `TransactionHost`; see database/transaction.ts.
+    ClsModule.forRoot({
+      global: true,
+      plugins: [
+        new ClsPluginTransactional({
+          imports: [DatabaseModule],
+          adapter: new TransactionalAdapterPrisma({ prismaInjectionToken: PrismaService }),
+        }),
+      ],
+    }),
     AuthModule,
 
     EmployeesModule,
