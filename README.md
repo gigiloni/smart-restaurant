@@ -54,7 +54,9 @@ BETTER_AUTH_SECRET=<random secret with at least 32 characters>
 FRONTEND_URL=http://localhost:4200
 ```
 
-The Docker Compose configuration additionally uses the PostgreSQL and pgAdmin environment variables defined in this file. Generate a unique `BETTER_AUTH_SECRET` with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`; sessions cannot be verified without it. `FRONTEND_URL` is the optional trusted origin for the Angular dev server.
+The Docker Compose configuration additionally uses the PostgreSQL and pgAdmin environment variables defined in this file. Generate a unique `BETTER_AUTH_SECRET` with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`; sessions cannot be verified without it. `FRONTEND_URL` is the frontend's origin. It is trusted for login and for state-changing requests, and CORS is enabled for it, with cookies. Leave it unset to disable CORS.
+
+The Angular dev server proxies `/api` to the backend (`apps/gastro-ui/proxy.conf.json`). There, the browser sees a single origin and CORS is not involved. CORS matters when the frontend is served from its own origin, for example `http://localhost:4200` calling `http://localhost:3000` directly, or `app.example.com` calling `api.example.com`. Such calls must send cookies (`fetch(url, { credentials: 'include' })`, `new EventSource(url, { withCredentials: true })`). The login and guest cookies are `SameSite=Lax`, so the frontend and the API must share a site: same host with different ports, or subdomains of the same domain. A frontend on an unrelated domain would need `SameSite=None; Secure` cookies, which are not configured.
 
 ## Start database
 
@@ -471,7 +473,11 @@ orders. `skip` counts rows rather than pages, so the second page of twenty is
 for one row more than you intend to show to find out whether another page
 exists.
 
-Every other collection is returned whole.
+Every other collection is returned whole. `GET /products` can instead be
+narrowed to the products a client needs, such as a cart's:
+`GET /products?ids=3,1,7`. `?ids=3&ids=1` works too. The same lookup is
+available with a JSON body: `POST /products-by-id` with `{ "ids": [3, 1, 7] }`.
+At most 100 ids are accepted. Unknown ids are left out of the result.
 
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:
