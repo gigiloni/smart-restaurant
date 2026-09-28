@@ -20,3 +20,19 @@ export function requireOpenOrder(order: LockedOrder | null, id: number): LockedO
 
   return order;
 }
+
+/**
+ * For a guest, an order of another party does not exist: answering 403 would
+ * confirm the id belongs to someone else's bill.
+ */
+export function requireOrderOfSession(
+  order: LockedOrder | null,
+  id: number,
+  tableSessionId: number,
+): LockedOrder | null {
+  if (order && order.tableSessionId !== tableSessionId) {
+    throw new NotFoundException(`Order ${id} not found`);
+  }
+
+  return order;
+}

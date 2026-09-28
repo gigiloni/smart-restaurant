@@ -19,6 +19,7 @@ export interface LockedOrder {
   id: number;
   status: OrderStatus;
   tableSessionId: number;
+  employeeId: number | null;
 }
 
 export interface LockedTableSession {
@@ -29,7 +30,8 @@ export interface LockedTableSession {
 
 export async function lockOrder(db: Db, id: number): Promise<LockedOrder | null> {
   const rows = await db.$queryRaw<LockedOrder[]>`
-    SELECT order_id AS id, status::text AS status, table_session_id AS "tableSessionId"
+    SELECT order_id AS id, status::text AS status, table_session_id AS "tableSessionId",
+      employee_id AS "employeeId"
     FROM "Order"
     WHERE order_id = ${id}
     FOR UPDATE`;

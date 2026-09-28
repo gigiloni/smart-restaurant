@@ -20,7 +20,7 @@ import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { lockOrder } from '../database/row-locks.js';
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
-import { requireOpenOrder } from '../orders/order-guards.js';
+import { requireOpenOrder, requireOrderOfSession } from '../orders/order-guards.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.repository.js';
 
@@ -52,10 +52,24 @@ export class OrderItemsService {
     return orderItem;
   }
 
-  async create(orderId: number, dto: CreateOrderItemDto): Promise<OrderItemWithDetails> {
+  /**
+   * With `tableSessionId` — a guest adding to their party's bill — orders of
+   * any other session are treated as not found.
+   */
+  async create(
+    orderId: number,
+    dto: CreateOrderItemDto,
+    options: { tableSessionId?: number } = {},
+  ): Promise<OrderItemWithDetails> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        requireOpenOrder(await lockOrder(tx, orderId), orderId);
+        let order = await lockOrder(tx, orderId);
+
+        if (options.tableSessionId !== undefined) {
+          order = requireOrderOfSession(order, orderId, options.tableSessionId);
+        }
+
+        requireOpenOrder(order, orderId);
 
         const created = await this.orderItemsRepository.create(orderId, dto, tx);
 

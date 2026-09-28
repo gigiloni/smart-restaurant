@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 
 import type { CreateOrderDto, PaginationQuery, UpdateOrderDto } from '@smart-restaurant/contracts';
 
+import type { GuestViewer } from '../auth/viewer.types.js';
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { lockOrder, lockTableSession } from '../database/row-locks.js';
@@ -85,10 +87,79 @@ export class OrdersService {
     }
   }
 
-  async update(id: number, dto: UpdateOrderDto): Promise<OrderWithDetails> {
+  /**
+   * Places a guest's order with their own party. Unlike `create`, it never
+   * seats anyone: a guest whose party has left or moved gets 409 rather than an
+   * order at a table they are not sitting at.
+   */
+  async createForGuest(guest: GuestViewer, dto: CreateOrderDto): Promise<OrderWithDetails> {
+    if (dto.employeeId !== undefined && dto.employeeId !== null) {
+      throw new ForbiddenException('Guests cannot assign an order to an employee');
+    }
+
+    if (!dto.items?.length) {
+      throw new BadRequestException('items: a guest order needs at least one item');
+    }
+
     try {
       return await this.prisma.$transaction(async (tx) => {
-        requireOpenOrder(await lockOrder(tx, id), id);
+        const session = await lockTableSession(tx, guest.tableSessionId);
+
+        if (!session || session.closedAt) {
+          throw new ConflictException('Your table has been cleared; scan the QR code again');
+        }
+
+        if (dto.tableId !== session.tableId) {
+          const table = await tx.restaurantTable.findUniqueOrThrow({
+            where: { id: session.tableId },
+            select: { tableNumber: true },
+          });
+
+          throw new ConflictException(
+            `Your party is seated at table ${table.tableNumber} (id ${session.tableId}), not table id ${dto.tableId}`,
+          );
+        }
+
+        const created = await this.ordersRepository.create(
+          {
+            tableSessionId: session.id,
+            tableId: session.tableId,
+            employeeId: null,
+            items: dto.items,
+          },
+          tx,
+        );
+
+        await this.events.orderCreated(tx, created);
+
+        return created;
+      });
+    } catch (error) {
+      throw this.mapUnknownReference(error);
+    }
+  }
+
+  /**
+   * With `claimFor`, the update only goes through while the order is
+   * unassigned, or already assigned to that employee. Checked under the order's
+   * lock, so two waiters claiming the same guest order cannot both win.
+   */
+  async update(
+    id: number,
+    dto: UpdateOrderDto,
+    options: { claimFor?: number } = {},
+  ): Promise<OrderWithDetails> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const order = requireOpenOrder(await lockOrder(tx, id), id);
+
+        if (
+          options.claimFor !== undefined &&
+          order.employeeId !== null &&
+          order.employeeId !== options.claimFor
+        ) {
+          throw new ConflictException(`Order ${id} has already been taken by another employee`);
+        }
 
         const updated = await this.ordersRepository.update(id, dto, tx);
 

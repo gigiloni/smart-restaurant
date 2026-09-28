@@ -43,7 +43,8 @@ export class AccessService {
       select: { employeeId: true },
     });
     if (!order) throw new NotFoundException(`Order ${orderId} not found`);
-    if (order.employeeId !== actor.id) {
+    // Guests place unassigned orders; any service employee may look after one.
+    if (order.employeeId !== null && order.employeeId !== actor.id) {
       throw new ForbiddenException('Only the assigned employee can change this order');
     }
   }
