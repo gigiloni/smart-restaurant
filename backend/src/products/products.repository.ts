@@ -42,8 +42,11 @@ const toRecipeRows = (
 export class ProductsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): Promise<ProductWithDetails[]> {
+  /** Every product, or only those whose id is in `ids`. */
+  findAll(ids?: number[]): Promise<ProductWithDetails[]> {
     return this.prisma.product.findMany({
+      where: ids ? { id: { in: ids } } : undefined,
+
       include: productDetailsInclude,
 
       orderBy: {
@@ -80,10 +83,7 @@ export class ProductsRepository {
    * Passing `ingredients` replaces the recipe wholesale; omitting it leaves the
    * existing recipe untouched.
    */
-  update(
-    id: number,
-    { ingredients, ...product }: UpdateProductDto,
-  ): Promise<ProductWithDetails> {
+  update(id: number, { ingredients, ...product }: UpdateProductDto): Promise<ProductWithDetails> {
     return this.prisma.product.update({
       where: {
         id,

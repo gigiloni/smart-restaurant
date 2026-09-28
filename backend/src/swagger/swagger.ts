@@ -22,6 +22,7 @@ const API_DESCRIPTION = [
   '  `/products/1` and `/products/01` address the same product, while `/products/abc` fails with 400.',
   '- `GET /orders` is paged with the optional `take` and `skip` query parameters, and returns the',
   '  newest 50 orders when they are omitted. Every other collection is returned whole.',
+  '- `GET /products?ids=3,1,7` returns just those products, for example the ones in a cart.',
   '- `PATCH` is a partial update. Every field is optional, but an empty object is rejected with 400',
   '  rather than treated as a no-op.',
   '- Write endpoints return the row they wrote, and `DELETE` returns the row as it was immediately',

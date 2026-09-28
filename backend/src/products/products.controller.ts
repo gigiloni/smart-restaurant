@@ -1,12 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
   createProductSchema,
   idParamSchema,
+  MAX_PRODUCT_IDS,
+  productListQuerySchema,
   productSchema,
   updateProductSchema,
   type CreateProductDto,
+  type ProductListQuery,
   type UpdateProductDto,
 } from '@smart-restaurant/contracts';
 
@@ -32,17 +35,21 @@ export class ProductsController {
 
   @Get()
   @ApiOperation({
-    summary: 'List all products',
+    summary: 'List products',
     description:
-      'Returns every product on the menu, sorted by name, each with its recipe resolved. Takes no query parameters: the list is neither filtered nor paginated.',
+      'Returns every product on the menu, sorted by name, each with its recipe resolved. The list is not paginated.\n\n' +
+      'Pass `ids` to get only some products, for example the ones in a cart or on an order: `?ids=3,1,7`. The result is still sorted by name, not in the order asked for. Ids that match no product are left out rather than failing the request.',
   })
   @ApiOkResponse({
-    description: 'All products, sorted by name.',
+    description: 'The products, sorted by name.',
     standardSchema: productSchema,
     isArray: true,
   })
-  findAll() {
-    return this.productsService.findAll();
+  @ApiValidationErrorResponse(
+    `\`ids\` is empty, holds something other than positive integers, or lists more than ${MAX_PRODUCT_IDS} ids.`,
+  )
+  findAll(@Query({ schema: productListQuerySchema }) query: ProductListQuery) {
+    return this.productsService.findAll(query.ids);
   }
 
   @Get(':id')
