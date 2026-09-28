@@ -3,4 +3,5 @@ export * from './product-ingredient.schema.js';
 export * from './product-list-query.schema.js';
 export * from './product-type.schema.js';
 export * from './product.schema.js';
+export * from './products-by-id.schema.js';
 export * from './update-product.schema.js';

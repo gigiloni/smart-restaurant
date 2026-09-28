@@ -5,6 +5,9 @@ import { idParamSchema } from '../common/id.schema.js';
 /** Ceiling on `ids`, so one request cannot turn into an unbounded `IN` list. */
 export const MAX_PRODUCT_IDS = 100;
 
+/** Asking for a product twice returns it once. */
+export const distinctIds = (ids: number[]): number[] => [...new Set(ids)];
+
 /**
  * Accepts `?ids=1,2,3` and the repeated form `?ids=1&ids=2`, which is what
  * Angular's `HttpParams.append` produces, or any mix of the two.
@@ -14,14 +17,7 @@ const splitIds = (value: unknown): unknown =>
 
 export const productListQuerySchema = z.object({
   ids: z
-    .preprocess(
-      splitIds,
-      z
-        .array(idParamSchema)
-        .min(1)
-        .max(MAX_PRODUCT_IDS)
-        .transform((ids) => [...new Set(ids)]),
-    )
+    .preprocess(splitIds, z.array(idParamSchema).min(1).max(MAX_PRODUCT_IDS).transform(distinctIds))
     .optional()
     .meta({
       description:
