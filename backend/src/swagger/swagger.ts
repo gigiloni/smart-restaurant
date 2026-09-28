@@ -101,7 +101,7 @@ const API_DESCRIPTION = [
   '| Prepare an item | `KITCHEN` for `APPETIZER`/`FOOD`, `BAR` for `DRINK`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `IN_PROGRESS`, `READY` | `item.status_changed` |',
   '| Serve or send back an item | `SERVICE`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE` | `item.status_changed` |',
   "| Remove an item | the order's employee, `ADMIN` | `DELETE /orders/{id}/items/{itemId}` | `item.deleted` |",
-  '| Claim an unassigned order | `SERVICE` | `PATCH /orders/{id}` with their own `employeeId`. 409 if another employee claimed it first | `order.updated` |',
+  '| Claim an unassigned order | `SERVICE` | `PATCH /orders/{id}` with their own `employeeId`. 403 if another employee claimed it first | `order.updated` |',
   '| Reassign the order | `ADMIN` | `PATCH /orders/{id}` with `employeeId` | `order.updated` |',
   "| Take payment | the order's employee, `ADMIN` | `POST /orders/{id}/close`. 409 while any item is not `SERVED` | `order.closed` |",
   "| Cancel the order | the order's employee, `ADMIN` | `DELETE /orders/{id}` | `order.deleted` |",

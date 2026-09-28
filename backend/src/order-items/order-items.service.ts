@@ -19,16 +19,15 @@ import { AccessService } from '../auth/access.service.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import { Transactional } from '@nestjs-cls/transactional';
 
-import { RowLocks } from '../database/row-locks.js';
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
-import { requireOpenOrder, requireOrderOfSession } from '../orders/order-guards.js';
+import { OrderLock, type OrderChange } from '../orders/order-lock.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.repository.js';
 
 @Injectable()
 export class OrderItemsService {
   constructor(
-    private readonly locks: RowLocks,
+    private readonly orderLock: OrderLock,
     private readonly events: OrderEventsWriter,
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
@@ -53,17 +52,13 @@ export class OrderItemsService {
     return orderItem;
   }
 
-  /**
-   * With `tableSessionId` — a guest adding to their party's bill — orders of
-   * any other session are treated as not found.
-   */
   async create(
     orderId: number,
     dto: CreateOrderItemDto,
-    options: { tableSessionId?: number } = {},
+    by: OrderChange,
   ): Promise<OrderItemWithDetails> {
     try {
-      return await this.addToOpenOrder(orderId, dto, options);
+      return await this.addToOpenOrder(orderId, dto, by);
     } catch (error) {
       if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation)) {
         throw new BadRequestException(`Product ${dto.productId} does not exist`);
@@ -85,7 +80,8 @@ export class OrderItemsService {
     dto: UpdateOrderItemDto,
     actor: AuthenticatedEmployee,
   ): Promise<OrderItemWithDetails> {
-    requireOpenOrder(await this.locks.order(orderId), orderId);
+    // Anyone whose role may make this move may make it, owner or not.
+    await this.orderLock.forChange(orderId);
 
     const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id);
 
@@ -124,8 +120,8 @@ export class OrderItemsService {
   }
 
   @Transactional()
-  async remove(orderId: number, id: number): Promise<OrderItemWithDetails> {
-    requireOpenOrder(await this.locks.order(orderId), orderId);
+  async remove(orderId: number, id: number, by: OrderChange): Promise<OrderItemWithDetails> {
+    await this.orderLock.forChange(orderId, by);
 
     const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id);
 
@@ -144,15 +140,9 @@ export class OrderItemsService {
   private async addToOpenOrder(
     orderId: number,
     dto: CreateOrderItemDto,
-    options: { tableSessionId?: number },
+    by: OrderChange,
   ): Promise<OrderItemWithDetails> {
-    let order = await this.locks.order(orderId);
-
-    if (options.tableSessionId !== undefined) {
-      order = requireOrderOfSession(order, orderId, options.tableSessionId);
-    }
-
-    requireOpenOrder(order, orderId);
+    await this.orderLock.forChange(orderId, by);
 
     const created = await this.orderItemsRepository.create(orderId, dto);
 

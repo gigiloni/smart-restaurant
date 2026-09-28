@@ -130,7 +130,7 @@ export class OrdersController {
     summary: 'Reassign an order',
     description:
       'Assigns an open order to another employee, or unassigns it with `null`. Only ADMIN may do that.\n\n' +
-      '**Claiming:** a SERVICE employee may assign an unassigned order — such as one a guest placed — to themselves by sending their own `employeeId`. If another employee claimed it first, the request fails with 409.\n\n' +
+      '**Claiming:** a SERVICE employee may assign an unassigned order — such as one a guest placed — to themselves by sending their own `employeeId`. If another employee claimed it first, the request fails with 403: it is theirs now.\n\n' +
       'An order no longer changes table on its own: orders belong to the party at the table, and a party that moves takes every order with it through `PATCH /table-sessions/{id}`. Items are managed through `/orders/{orderId}/items`.',
   })
   @ApiIdParam('id', 'Id of the order to update.')
@@ -139,23 +139,20 @@ export class OrdersController {
     '`id` is not a positive integer, the payload is invalid, or the employee does not exist.',
   )
   @ApiEntityNotFoundResponse('No order with that id exists.')
-  @ApiEntityConflictResponse(
-    'The order is closed: it has been paid and is frozen. Or, when claiming, another employee took it first.',
-  )
+  @ApiEntityConflictResponse('The order is closed: it has been paid and is frozen.')
   async update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateOrderSchema }) dto: UpdateOrderDto,
     @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    await this.access.requireOrderOwner(actor, id);
-    if (actor.role !== 'ADMIN' && dto.employeeId !== undefined) {
-      // SERVICE may only claim an unassigned order — typically a guest's — for themselves.
-      if (dto.employeeId !== actor.id) {
-        throw new ForbiddenException('Only admins can reassign orders');
-      }
-      return this.ordersService.update(id, dto, { claimFor: actor.id });
+    this.access.requireService(actor);
+    // SERVICE may only claim an order for themselves. Claiming an unassigned
+    // order — typically a guest's — passes the ownership check under the
+    // order's lock; one another employee took first fails it with 403.
+    if (actor.role !== 'ADMIN' && dto.employeeId !== undefined && dto.employeeId !== actor.id) {
+      throw new ForbiddenException('Only admins can reassign orders');
     }
-    return this.ordersService.update(id, dto);
+    return this.ordersService.update(id, dto, { actor });
   }
 
   @Post(':id/close')
@@ -177,9 +174,9 @@ export class OrdersController {
     @Param('id', { schema: idParamSchema }) id: number,
     @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    await this.access.requireOrderOwner(actor, id);
+    this.access.requireService(actor);
 
-    return this.ordersService.close(id);
+    return this.ordersService.close(id, { actor });
   }
 
   @Delete(':id')
@@ -202,7 +199,7 @@ export class OrdersController {
     @Param('id', { schema: idParamSchema }) id: number,
     @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    await this.access.requireOrderOwner(actor, id);
-    return this.ordersService.remove(id);
+    this.access.requireService(actor);
+    return this.ordersService.remove(id, { actor });
   }
 }

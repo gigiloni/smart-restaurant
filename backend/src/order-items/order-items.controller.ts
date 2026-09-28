@@ -107,8 +107,8 @@ export class OrderItemsController {
       });
     }
 
-    await this.access.requireOrderOwner(actor, orderId);
-    return this.orderItemsService.create(orderId, dto);
+    this.access.requireService(actor);
+    return this.orderItemsService.create(orderId, dto, { actor });
   }
 
   @Patch(':id')
@@ -187,7 +187,7 @@ export class OrderItemsController {
     @Param('id', { schema: idParamSchema }) id: number,
     @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    await this.access.requireOrderOwner(actor, orderId);
-    return this.orderItemsService.remove(orderId, id);
+    this.access.requireService(actor);
+    return this.orderItemsService.remove(orderId, id, { actor });
   }
 }

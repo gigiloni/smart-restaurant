@@ -569,7 +569,7 @@ same moment on a free table still land in one session.
 | Prepare an item | `KITCHEN` for `APPETIZER`/`FOOD`, `BAR` for `DRINK`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `IN_PROGRESS`, `READY` | `item.status_changed` |
 | Serve or send back an item | `SERVICE`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE` | `item.status_changed` |
 | Remove an item | the order's employee, `ADMIN` | `DELETE /orders/{id}/items/{itemId}` | `item.deleted` |
-| Claim an unassigned order | `SERVICE` | `PATCH /orders/{id}` with their own `employeeId`. 409 if another employee claimed it first | `order.updated` |
+| Claim an unassigned order | `SERVICE` | `PATCH /orders/{id}` with their own `employeeId`. 403 if another employee claimed it first | `order.updated` |
 | Reassign the order | `ADMIN` | `PATCH /orders/{id}` with `employeeId` | `order.updated` |
 | Take payment | the order's employee, `ADMIN` | `POST /orders/{id}/close`. 409 while any item is not `SERVED` | `order.closed` |
 | Cancel the order | the order's employee, `ADMIN` | `DELETE /orders/{id}` | `order.deleted` |
@@ -598,8 +598,13 @@ getting in between.
   `TransactionHost.tx`, so no client is passed around.
 - **Locks** come from `RowLocks` (`rowLocks.order(id)`,
   `rowLocks.tableSession(id)`), which runs `SELECT ... FOR UPDATE`. Prisma has
-  no API for that. A lock taken outside a transaction throws: it would protect
-  nothing. Take locks session before order.
+  no API for that. A lock taken outside a transaction throws
+  (`Propagation.Mandatory`): it would protect nothing. Take locks session
+  before order.
+- **Changing an order** goes through `OrderLock.forChange(id, { actor })`. It
+  locks the order and then checks, under the lock, that it exists (404), belongs
+  to the actor (403) and is still open (409). Nothing can reassign, pay or
+  delete the order between those checks and the write.
 - **Map Prisma errors outside the transactional method.** A failed statement
   aborts the transaction, so nothing else can run in it. Methods that open
   several transactions of their own (`openOrJoin`, order creation) use

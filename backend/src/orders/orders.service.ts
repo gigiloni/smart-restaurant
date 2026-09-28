@@ -15,13 +15,14 @@ import type { GuestViewer } from '../auth/viewer.types.js';
 import { RowLocks } from '../database/row-locks.js';
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { TableSessionsService } from '../table-sessions/table-sessions.service.js';
-import { requireOpenOrder } from './order-guards.js';
+import { OrderLock, type OrderChange } from './order-lock.js';
 import { OrdersRepository, type OrderWithDetails } from './orders.repository.js';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly locks: RowLocks,
+    private readonly orderLock: OrderLock,
     private readonly events: OrderEventsWriter,
     private readonly ordersRepository: OrdersRepository,
     private readonly tableSessionsService: TableSessionsService,
@@ -77,29 +78,6 @@ export class OrdersService {
     }
   }
 
-  /** The order, or null if the session was cleared before its lock was taken. */
-  @Transactional()
-  private async placeInSession(
-    tableSessionId: number,
-    dto: Omit<CreateOrderDto, 'tableId'>,
-  ): Promise<OrderWithDetails | null> {
-    const locked = await this.locks.tableSession(tableSessionId);
-
-    if (!locked || locked.closedAt) {
-      return null;
-    }
-
-    const created = await this.ordersRepository.create({
-      ...dto,
-      tableSessionId: locked.id,
-      tableId: locked.tableId,
-    });
-
-    await this.events.orderCreated(created);
-
-    return created;
-  }
-
   /**
    * Places a guest's order with their own party. Unlike `create`, it never
    * seats anyone: a guest whose party has left or moved gets 409 rather than an
@@ -114,54 +92,56 @@ export class OrdersService {
       throw new BadRequestException('items: a guest order needs at least one item');
     }
 
+    let order: OrderWithDetails | null;
+
     try {
-      return await this.placeGuestOrder(guest, dto);
+      order = await this.placeInSession(
+        guest.tableSessionId,
+        { employeeId: null, items: dto.items },
+        dto.tableId,
+      );
     } catch (error) {
       throw this.mapUnknownReference(error);
     }
-  }
 
-  /**
-   * With `claimFor`, the update only goes through while the order is
-   * unassigned, or already assigned to that employee. Checked under the order's
-   * lock, so two waiters claiming the same guest order cannot both win.
-   */
-  async update(
-    id: number,
-    dto: UpdateOrderDto,
-    options: { claimFor?: number } = {},
-  ): Promise<OrderWithDetails> {
-    try {
-      return await this.updateOpenOrder(id, dto, options);
-    } catch (error) {
-      throw this.mapUnknownReference(error);
-    }
-  }
-
-  @Transactional()
-  private async placeGuestOrder(
-    guest: GuestViewer,
-    dto: CreateOrderDto,
-  ): Promise<OrderWithDetails> {
-    const session = await this.locks.tableSession(guest.tableSessionId);
-
-    if (!session || session.closedAt) {
+    if (!order) {
       throw new ConflictException('Your table has been cleared; scan the QR code again');
     }
 
-    if (dto.tableId !== session.tableId) {
+    return order;
+  }
+
+  /**
+   * Places an order in a session under the session's lock, so the session
+   * cannot be cleared or moved underneath it. Null if it has been cleared.
+   *
+   * With `expectedTableId` — a guest ordering from the table they believe they
+   * are at — a party that has moved since gets 409 instead of an order.
+   */
+  @Transactional()
+  private async placeInSession(
+    tableSessionId: number,
+    dto: Omit<CreateOrderDto, 'tableId'>,
+    expectedTableId?: number,
+  ): Promise<OrderWithDetails | null> {
+    const session = await this.locks.tableSession(tableSessionId);
+
+    if (!session || session.closedAt) {
+      return null;
+    }
+
+    if (expectedTableId !== undefined && expectedTableId !== session.tableId) {
       const tableNumber = await this.ordersRepository.tableNumberOf(session.tableId);
 
       throw new ConflictException(
-        `Your party is seated at table ${tableNumber} (id ${session.tableId}), not table id ${dto.tableId}`,
+        `Your party is seated at table ${tableNumber} (id ${session.tableId}), not table id ${expectedTableId}`,
       );
     }
 
     const created = await this.ordersRepository.create({
+      ...dto,
       tableSessionId: session.id,
       tableId: session.tableId,
-      employeeId: null,
-      items: dto.items,
     });
 
     await this.events.orderCreated(created);
@@ -169,21 +149,21 @@ export class OrdersService {
     return created;
   }
 
+  async update(id: number, dto: UpdateOrderDto, by: OrderChange): Promise<OrderWithDetails> {
+    try {
+      return await this.updateOpenOrder(id, dto, by);
+    } catch (error) {
+      throw this.mapUnknownReference(error);
+    }
+  }
+
   @Transactional()
   private async updateOpenOrder(
     id: number,
     dto: UpdateOrderDto,
-    options: { claimFor?: number },
+    by: OrderChange,
   ): Promise<OrderWithDetails> {
-    const order = requireOpenOrder(await this.locks.order(id), id);
-
-    if (
-      options.claimFor !== undefined &&
-      order.employeeId !== null &&
-      order.employeeId !== options.claimFor
-    ) {
-      throw new ConflictException(`Order ${id} has already been taken by another employee`);
-    }
+    await this.orderLock.forChange(id, by);
 
     const updated = await this.ordersRepository.update(id, dto);
 
@@ -198,12 +178,8 @@ export class OrdersService {
    * retried request is safe.
    */
   @Transactional()
-  async close(id: number): Promise<OrderWithDetails> {
-    const order = await this.locks.order(id);
-
-    if (!order) {
-      throw new NotFoundException(`Order ${id} not found`);
-    }
+  async close(id: number, by: OrderChange): Promise<OrderWithDetails> {
+    const order = await this.orderLock.forChange(id, { ...by, allowClosed: true });
 
     if (order.status === 'CLOSED') {
       return this.ordersRepository.findById(id) as Promise<OrderWithDetails>;
@@ -225,8 +201,8 @@ export class OrdersService {
   }
 
   @Transactional()
-  async remove(id: number): Promise<OrderWithDetails> {
-    requireOpenOrder(await this.locks.order(id), id);
+  async remove(id: number, by: OrderChange): Promise<OrderWithDetails> {
+    await this.orderLock.forChange(id, by);
 
     // The delete returns the order with its items as they were, and the
     // cascade removes those items in the same statement, so this one event
