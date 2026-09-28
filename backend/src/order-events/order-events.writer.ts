@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { TransactionHost } from '@nestjs-cls/transactional';
 
 import type { OrderEventType, OrderItemStatus, ProductType } from '@smart-restaurant/contracts';
 
-import type { Db } from '../database/db.js';
+import type { PrismaAdapter } from '../database/transaction.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
 /** The channel the live feed listens on. Notifications are only sent on commit. */
@@ -35,7 +36,8 @@ interface ItemLike {
 }
 
 /**
- * Appends order events inside the caller's transaction.
+ * Appends order events inside the caller's transaction: the one its
+ * `@Transactional()` method opened.
  *
  * Call it as the LAST write of a transaction. Bumping the counter takes a lock
  * on its single row that every event-writing transaction needs and that is only
@@ -44,63 +46,80 @@ interface ItemLike {
  */
 @Injectable()
 export class OrderEventsWriter {
-  sessionOpened(db: Db, session: SessionLike) {
-    return this.append(db, {
+  constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
+
+  /**
+   * An event has to commit with the change it describes or not at all, and the
+   * counter's lock must be held until that commit: refuse to write outside a
+   * transaction rather than record a change that might never happen.
+   */
+  private db() {
+    if (!this.txHost.isTransactionActive()) {
+      throw new Error(
+        'Order events are only written inside a transaction: call from a @Transactional() method',
+      );
+    }
+
+    return this.txHost.tx;
+  }
+
+  sessionOpened(session: SessionLike) {
+    return this.append({
       type: 'session.opened',
       tableSessionId: session.id,
       data: { session },
     });
   }
 
-  async sessionMoved(db: Db, session: SessionLike, previousTableId: number) {
-    return this.append(db, {
+  async sessionMoved(session: SessionLike, previousTableId: number) {
+    return this.append({
       type: 'session.moved',
       tableSessionId: session.id,
-      productTypes: await this.openProductTypesOfSession(db, session.id),
+      productTypes: await this.openProductTypesOfSession(session.id),
       data: { session, previousTableId },
     });
   }
 
-  sessionClosed(db: Db, session: SessionLike) {
-    return this.append(db, {
+  sessionClosed(session: SessionLike) {
+    return this.append({
       type: 'session.closed',
       tableSessionId: session.id,
       data: { session },
     });
   }
 
-  orderCreated(db: Db, order: OrderLike) {
-    return this.appendOrder(db, 'order.created', order);
+  orderCreated(order: OrderLike) {
+    return this.appendOrder('order.created', order);
   }
 
-  orderUpdated(db: Db, order: OrderLike) {
-    return this.appendOrder(db, 'order.updated', order);
+  orderUpdated(order: OrderLike) {
+    return this.appendOrder('order.updated', order);
   }
 
-  orderClosed(db: Db, order: OrderLike) {
-    return this.appendOrder(db, 'order.closed', order);
+  orderClosed(order: OrderLike) {
+    return this.appendOrder('order.closed', order);
   }
 
   /** `order` is the order as it was immediately before deletion, items included. */
-  orderDeleted(db: Db, order: OrderLike) {
-    return this.appendOrder(db, 'order.deleted', order);
+  orderDeleted(order: OrderLike) {
+    return this.appendOrder('order.deleted', order);
   }
 
-  itemCreated(db: Db, item: ItemLike) {
-    return this.appendItem(db, 'item.created', item);
+  itemCreated(item: ItemLike) {
+    return this.appendItem('item.created', item);
   }
 
-  itemStatusChanged(db: Db, item: ItemLike, previousStatus: OrderItemStatus) {
-    return this.appendItem(db, 'item.status_changed', item, { previousStatus });
+  itemStatusChanged(item: ItemLike, previousStatus: OrderItemStatus) {
+    return this.appendItem('item.status_changed', item, { previousStatus });
   }
 
   /** `item` is the item as it was immediately before deletion. */
-  itemDeleted(db: Db, item: ItemLike) {
-    return this.appendItem(db, 'item.deleted', item);
+  itemDeleted(item: ItemLike) {
+    return this.appendItem('item.deleted', item);
   }
 
-  private appendOrder(db: Db, type: OrderEventType, order: OrderLike) {
-    return this.append(db, {
+  private appendOrder(type: OrderEventType, order: OrderLike) {
+    return this.append({
       type,
       tableSessionId: order.tableSessionId,
       orderId: order.id,
@@ -110,12 +129,11 @@ export class OrderEventsWriter {
   }
 
   private async appendItem(
-    db: Db,
     type: OrderEventType,
     item: ItemLike,
     extra: Record<string, unknown> = {},
   ) {
-    const order = await db.order.findUniqueOrThrow({
+    const order = await this.db().order.findUniqueOrThrow({
       where: { id: item.orderId },
       select: {
         id: true,
@@ -126,7 +144,7 @@ export class OrderEventsWriter {
       },
     });
 
-    return this.append(db, {
+    return this.append({
       type,
       tableSessionId: order.tableSessionId,
       orderId: order.id,
@@ -146,12 +164,12 @@ export class OrderEventsWriter {
     });
   }
 
-  private async append(db: Db, event: DraftOrderEvent): Promise<bigint> {
+  private async append(event: DraftOrderEvent): Promise<bigint> {
     // Row-locked counter rather than a sequence: see OrderEvent in schema.prisma.
-    const [{ value: id }] = await db.$queryRaw<{ value: bigint }[]>`
+    const [{ value: id }] = await this.db().$queryRaw<{ value: bigint }[]>`
       UPDATE "Order_Event_Counter" SET value = value + 1 WHERE id = 1 RETURNING value`;
 
-    await db.orderEvent.create({
+    await this.db().orderEvent.create({
       data: {
         id,
         type: event.type,
@@ -170,13 +188,13 @@ export class OrderEventsWriter {
     // Delivered only if the transaction commits, and in commit order. The
     // payload is constant so several events in one transaction collapse into a
     // single notification: listeners re-read the log rather than trust it.
-    await db.$executeRaw`SELECT pg_notify(${ORDER_EVENTS_CHANNEL}, '')`;
+    await this.db().$executeRaw`SELECT pg_notify(${ORDER_EVENTS_CHANNEL}, '')`;
 
     return id;
   }
 
-  private async openProductTypesOfSession(db: Db, tableSessionId: number): Promise<ProductType[]> {
-    const items = await db.orderItem.findMany({
+  private async openProductTypesOfSession(tableSessionId: number): Promise<ProductType[]> {
+    const items = await this.db().orderItem.findMany({
       where: { order: { tableSessionId, status: 'OPEN' } },
       select: { product: { select: { type: true } } },
     });

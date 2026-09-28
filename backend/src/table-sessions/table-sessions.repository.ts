@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
-import type { Db } from '../database/db.js';
-import { PrismaService } from '../database/prisma.service.js';
+import { TransactionHost } from '@nestjs-cls/transactional';
+
+import type { PrismaAdapter } from '../database/transaction.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { orderDetailsInclude } from '../orders/orders.repository.js';
 
@@ -31,10 +32,15 @@ export type TableSessionWithDetails = Prisma.TableSessionGetPayload<{
 
 @Injectable()
 export class TableSessionsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
+
+  /** The current transaction's client, or the plain client outside one. */
+  private get db() {
+    return this.txHost.tx;
+  }
 
   findOpen(): Promise<TableSessionWithTable[]> {
-    return this.prisma.tableSession.findMany({
+    return this.db.tableSession.findMany({
       where: {
         closedAt: null,
       },
@@ -47,8 +53,8 @@ export class TableSessionsRepository {
     });
   }
 
-  findById(id: number, db: Db = this.prisma): Promise<TableSessionWithDetails | null> {
-    return db.tableSession.findUnique({
+  findById(id: number): Promise<TableSessionWithDetails | null> {
+    return this.db.tableSession.findUnique({
       where: {
         id,
       },
@@ -57,8 +63,8 @@ export class TableSessionsRepository {
     });
   }
 
-  findOpenByTable(tableId: number, db: Db = this.prisma): Promise<TableSessionWithTable | null> {
-    return db.tableSession.findFirst({
+  findOpenByTable(tableId: number): Promise<TableSessionWithTable | null> {
+    return this.db.tableSession.findFirst({
       where: {
         tableId,
         closedAt: null,
@@ -68,8 +74,8 @@ export class TableSessionsRepository {
     });
   }
 
-  create(tableId: number, db: Db = this.prisma): Promise<TableSessionWithTable> {
-    return db.tableSession.create({
+  create(tableId: number): Promise<TableSessionWithTable> {
+    return this.db.tableSession.create({
       data: {
         tableId,
       },
@@ -82,8 +88,8 @@ export class TableSessionsRepository {
    * Orders follow automatically: their composite key onto the session cascades
    * the new table id.
    */
-  move(id: number, tableId: number, db: Db): Promise<TableSessionWithTable> {
-    return db.tableSession.update({
+  move(id: number, tableId: number): Promise<TableSessionWithTable> {
+    return this.db.tableSession.update({
       where: {
         id,
       },
@@ -96,8 +102,8 @@ export class TableSessionsRepository {
     });
   }
 
-  close(id: number, db: Db): Promise<TableSessionWithTable> {
-    return db.tableSession.update({
+  close(id: number): Promise<TableSessionWithTable> {
+    return this.db.tableSession.update({
       where: {
         id,
       },
@@ -110,8 +116,8 @@ export class TableSessionsRepository {
     });
   }
 
-  countOpenOrders(id: number, db: Db): Promise<number> {
-    return db.order.count({
+  countOpenOrders(id: number): Promise<number> {
+    return this.db.order.count({
       where: {
         tableSessionId: id,
         status: 'OPEN',

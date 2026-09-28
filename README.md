@@ -559,6 +559,29 @@ A table has at most one open session. That is enforced by a partial unique index
 created in the migration, since Prisma cannot express it, and an order's
 `tableId` is kept equal to its session's table by a composite foreign key.
 
+#### Transactions and row locks (backend)
+
+Writes that check something and then act on it, such as "is the order still
+open?" before adding an item, run in a transaction and hold a row lock on the
+order or session. The lock stops a concurrent request, such as payment, from
+getting in between.
+
+- **Transactions** come from [`@nestjs-cls/transactional`](https://papooch.github.io/nestjs-cls/plugins/available-plugins/transactional).
+  Mark a service method `@Transactional()`, and every repository call it makes
+  joins the transaction. Repositories read the current client from
+  `TransactionHost.tx`, so no client is passed around.
+- **Locks** come from `RowLocks` (`rowLocks.order(id)`,
+  `rowLocks.tableSession(id)`), which runs `SELECT ... FOR UPDATE`. Prisma has
+  no API for that. A lock taken outside a transaction throws: it would protect
+  nothing. Take locks session before order.
+- **Map Prisma errors outside the transactional method.** A failed statement
+  aborts the transaction, so nothing else can run in it. Methods that open
+  several transactions of their own (`openOrJoin`, order creation) use
+  `Propagation.Never` and throw if called inside one.
+- **Order events** are written with `OrderEventsWriter` as the last write of the
+  transaction that makes the change. It throws outside a transaction, so an
+  event can never commit without its change.
+
 ### Order events
 
 Every change to a table session, an order or an order item is also recorded as
