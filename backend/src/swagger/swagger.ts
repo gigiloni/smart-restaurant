@@ -30,6 +30,8 @@ const API_DESCRIPTION = [
   '  `"<field>: <problem>"` strings for schema validation failures and a single string otherwise.',
   '- Money is returned as a decimal string (`"10.50"`), because the column is `numeric` and JSON',
   '  numbers cannot carry it without losing precision. It is accepted as a number on write.',
+  '- CORS is enabled, with credentials, for the origin in `FRONTEND_URL` only. A frontend on another',
+  "  origin must send cookies explicitly: `fetch(url, { credentials: 'include' })`.",
   '',
   '### Nested resources',
   '',

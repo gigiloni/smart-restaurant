@@ -6,6 +6,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 
 import { AppModule } from './app/app.module.js';
 import { AuthService } from './auth/auth.service.js';
+import { enableCors } from './cors.js';
 import { setupSwagger } from './swagger/swagger.js';
 
 async function bootstrap(): Promise<void> {
@@ -17,6 +18,12 @@ async function bootstrap(): Promise<void> {
   const port = configService.get<number>('app.port') ?? 3000;
 
   app.setGlobalPrefix('api');
+
+  // Before any route is registered, so the hook covers all of them.
+  const frontendUrl = configService.get<string>('auth.frontendUrl');
+  if (frontendUrl) {
+    enableCors(app, [frontendUrl]);
+  }
 
   app.useGlobalPipes(
     new StandardSchemaValidationPipe({

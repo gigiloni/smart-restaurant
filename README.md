@@ -54,7 +54,9 @@ BETTER_AUTH_SECRET=<random secret with at least 32 characters>
 FRONTEND_URL=http://localhost:4200
 ```
 
-The Docker Compose configuration additionally uses the PostgreSQL and pgAdmin environment variables defined in this file. Generate a unique `BETTER_AUTH_SECRET` with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`; sessions cannot be verified without it. `FRONTEND_URL` is the optional trusted origin for the Angular dev server.
+The Docker Compose configuration additionally uses the PostgreSQL and pgAdmin environment variables defined in this file. Generate a unique `BETTER_AUTH_SECRET` with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`; sessions cannot be verified without it. `FRONTEND_URL` is the frontend's origin. It is trusted for login and for state-changing requests, and CORS is enabled for it, with cookies. Leave it unset to disable CORS.
+
+The Angular dev server proxies `/api` to the backend (`apps/gastro-ui/proxy.conf.json`). There, the browser sees a single origin and CORS is not involved. CORS matters when the frontend is served from its own origin, for example `http://localhost:4200` calling `http://localhost:3000` directly, or `app.example.com` calling `api.example.com`. Such calls must send cookies (`fetch(url, { credentials: 'include' })`, `new EventSource(url, { withCredentials: true })`). The login and guest cookies are `SameSite=Lax`, so the frontend and the API must share a site: same host with different ports, or subdomains of the same domain. A frontend on an unrelated domain would need `SameSite=None; Secure` cookies, which are not configured.
 
 ## Start database
 
