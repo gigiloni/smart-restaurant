@@ -124,11 +124,11 @@ export class OrdersController {
     @Body({ schema: updateOrderSchema }) dto: UpdateOrderDto,
     @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    await this.access.requireOrderOwner(actor, id);
+    this.access.requireService(actor);
     if (actor.role !== 'ADMIN' && dto.employeeId !== undefined) {
       throw new ForbiddenException('Only admins can reassign orders');
     }
-    return this.ordersService.update(id, dto);
+    return this.ordersService.update(id, dto, { actor });
   }
 
   @Post(':id/close')
@@ -150,9 +150,9 @@ export class OrdersController {
     @Param('id', { schema: idParamSchema }) id: number,
     @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    await this.access.requireOrderOwner(actor, id);
+    this.access.requireService(actor);
 
-    return this.ordersService.close(id);
+    return this.ordersService.close(id, { actor });
   }
 
   @Delete(':id')
@@ -175,7 +175,7 @@ export class OrdersController {
     @Param('id', { schema: idParamSchema }) id: number,
     @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    await this.access.requireOrderOwner(actor, id);
-    return this.ordersService.remove(id);
+    this.access.requireService(actor);
+    return this.ordersService.remove(id, { actor });
   }
 }
