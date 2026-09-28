@@ -7,10 +7,10 @@ import pg from 'pg';
 const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
 const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
 
-if (!process.env.DATABASE_URL || !email || !password || password.length < 12) {
-  throw new Error(
-    'DATABASE_URL, BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD (12+ characters) are required.',
-  );
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
+if (!email) throw new Error('BOOTSTRAP_ADMIN_EMAIL is required.');
+if (!password || password.length < 12) {
+  throw new Error('BOOTSTRAP_ADMIN_PASSWORD must contain at least 12 characters.');
 }
 
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
