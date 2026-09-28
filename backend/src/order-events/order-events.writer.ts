@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TransactionHost } from '@nestjs-cls/transactional';
+import { Propagation, TransactionHost, Transactional } from '@nestjs-cls/transactional';
 
 import type { OrderEventType, OrderItemStatus, ProductType } from '@smart-restaurant/contracts';
 
@@ -48,18 +48,7 @@ interface ItemLike {
 export class OrderEventsWriter {
   constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
 
-  /**
-   * An event has to commit with the change it describes or not at all, and the
-   * counter's lock must be held until that commit: refuse to write outside a
-   * transaction rather than record a change that might never happen.
-   */
-  private db() {
-    if (!this.txHost.isTransactionActive()) {
-      throw new Error(
-        'Order events are only written inside a transaction: call from a @Transactional() method',
-      );
-    }
-
+  private get db() {
     return this.txHost.tx;
   }
 
@@ -133,7 +122,7 @@ export class OrderEventsWriter {
     item: ItemLike,
     extra: Record<string, unknown> = {},
   ) {
-    const order = await this.db().order.findUniqueOrThrow({
+    const order = await this.db.order.findUniqueOrThrow({
       where: { id: item.orderId },
       select: {
         id: true,
@@ -164,12 +153,18 @@ export class OrderEventsWriter {
     });
   }
 
+  /**
+   * `Propagation.Mandatory`: an event has to commit with the change it
+   * describes or not at all, and the counter's lock must be held until that
+   * commit, so writing outside a transaction throws.
+   */
+  @Transactional(Propagation.Mandatory)
   private async append(event: DraftOrderEvent): Promise<bigint> {
     // Row-locked counter rather than a sequence: see OrderEvent in schema.prisma.
-    const [{ value: id }] = await this.db().$queryRaw<{ value: bigint }[]>`
+    const [{ value: id }] = await this.db.$queryRaw<{ value: bigint }[]>`
       UPDATE "Order_Event_Counter" SET value = value + 1 WHERE id = 1 RETURNING value`;
 
-    await this.db().orderEvent.create({
+    await this.db.orderEvent.create({
       data: {
         id,
         type: event.type,
@@ -188,13 +183,13 @@ export class OrderEventsWriter {
     // Delivered only if the transaction commits, and in commit order. The
     // payload is constant so several events in one transaction collapse into a
     // single notification: listeners re-read the log rather than trust it.
-    await this.db().$executeRaw`SELECT pg_notify(${ORDER_EVENTS_CHANNEL}, '')`;
+    await this.db.$executeRaw`SELECT pg_notify(${ORDER_EVENTS_CHANNEL}, '')`;
 
     return id;
   }
 
   private async openProductTypesOfSession(tableSessionId: number): Promise<ProductType[]> {
-    const items = await this.db().orderItem.findMany({
+    const items = await this.db.orderItem.findMany({
       where: { order: { tableSessionId, status: 'OPEN' } },
       select: { product: { select: { type: true } } },
     });

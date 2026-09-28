@@ -1,14 +1,11 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 
 import type { ProductType } from '@smart-restaurant/contracts';
 
-import { PrismaService } from '../database/prisma.service.js';
 import type { AuthenticatedEmployee } from './auth.types.js';
 
 @Injectable()
 export class AccessService {
-  constructor(private readonly prisma: PrismaService) {}
-
   requireAdmin(actor: AuthenticatedEmployee): void {
     if (actor.role !== 'ADMIN') {
       throw new ForbiddenException('Admin role required');
@@ -34,15 +31,15 @@ export class AccessService {
     }
   }
 
-  async requireOrderOwner(actor: AuthenticatedEmployee, orderId: number): Promise<void> {
+  /**
+   * Takes the order as locked by the caller's transaction, not an id: reading
+   * the owner separately would let a reassignment slip in between this check
+   * and the change it guards.
+   */
+  requireOrderOwner(actor: AuthenticatedEmployee, order: { employeeId: number | null }): void {
     if (actor.role === 'ADMIN') return;
     this.requireService(actor);
 
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      select: { employeeId: true },
-    });
-    if (!order) throw new NotFoundException(`Order ${orderId} not found`);
     if (order.employeeId !== actor.id) {
       throw new ForbiddenException('Only the assigned employee can change this order');
     }

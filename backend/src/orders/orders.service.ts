@@ -13,13 +13,14 @@ import { Propagation, Transactional } from '@nestjs-cls/transactional';
 import { RowLocks } from '../database/row-locks.js';
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { TableSessionsService } from '../table-sessions/table-sessions.service.js';
-import { requireOpenOrder } from './order-guards.js';
+import { OrderLock, type OrderChange } from './order-lock.js';
 import { OrdersRepository, type OrderWithDetails } from './orders.repository.js';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly locks: RowLocks,
+    private readonly orderLock: OrderLock,
     private readonly events: OrderEventsWriter,
     private readonly ordersRepository: OrdersRepository,
     private readonly tableSessionsService: TableSessionsService,
@@ -98,17 +99,21 @@ export class OrdersService {
     return created;
   }
 
-  async update(id: number, dto: UpdateOrderDto): Promise<OrderWithDetails> {
+  async update(id: number, dto: UpdateOrderDto, by: OrderChange): Promise<OrderWithDetails> {
     try {
-      return await this.updateOpenOrder(id, dto);
+      return await this.updateOpenOrder(id, dto, by);
     } catch (error) {
       throw this.mapUnknownReference(error);
     }
   }
 
   @Transactional()
-  private async updateOpenOrder(id: number, dto: UpdateOrderDto): Promise<OrderWithDetails> {
-    requireOpenOrder(await this.locks.order(id), id);
+  private async updateOpenOrder(
+    id: number,
+    dto: UpdateOrderDto,
+    by: OrderChange,
+  ): Promise<OrderWithDetails> {
+    await this.orderLock.forChange(id, by);
 
     const updated = await this.ordersRepository.update(id, dto);
 
@@ -123,12 +128,8 @@ export class OrdersService {
    * retried request is safe.
    */
   @Transactional()
-  async close(id: number): Promise<OrderWithDetails> {
-    const order = await this.locks.order(id);
-
-    if (!order) {
-      throw new NotFoundException(`Order ${id} not found`);
-    }
+  async close(id: number, by: OrderChange): Promise<OrderWithDetails> {
+    const order = await this.orderLock.forChange(id, { ...by, allowClosed: true });
 
     if (order.status === 'CLOSED') {
       return this.ordersRepository.findById(id) as Promise<OrderWithDetails>;
@@ -150,8 +151,8 @@ export class OrdersService {
   }
 
   @Transactional()
-  async remove(id: number): Promise<OrderWithDetails> {
-    requireOpenOrder(await this.locks.order(id), id);
+  async remove(id: number, by: OrderChange): Promise<OrderWithDetails> {
+    await this.orderLock.forChange(id, by);
 
     // The delete returns the order with its items as they were, and the
     // cascade removes those items in the same statement, so this one event
