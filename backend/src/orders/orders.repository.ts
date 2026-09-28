@@ -6,8 +6,9 @@ import type {
   UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
-import type { Db } from '../database/db.js';
-import { PrismaService } from '../database/prisma.service.js';
+import { TransactionHost } from '@nestjs-cls/transactional';
+
+import type { PrismaAdapter } from '../database/transaction.js';
 import { Prisma } from '../generated/prisma/client.js';
 
 export const orderDetailsInclude = {
@@ -38,10 +39,15 @@ export interface NewOrder {
 
 @Injectable()
 export class OrdersRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
+
+  /** The current transaction's client, or the plain client outside one. */
+  private get db() {
+    return this.txHost.tx;
+  }
 
   findAll({ take, skip }: PaginationQuery): Promise<OrderWithDetails[]> {
-    return this.prisma.order.findMany({
+    return this.db.order.findMany({
       include: orderDetailsInclude,
 
       orderBy: {
@@ -53,8 +59,8 @@ export class OrdersRepository {
     });
   }
 
-  findById(id: number, db: Db = this.prisma): Promise<OrderWithDetails | null> {
-    return db.order.findUnique({
+  findById(id: number): Promise<OrderWithDetails | null> {
+    return this.db.order.findUnique({
       where: {
         id,
       },
@@ -63,8 +69,8 @@ export class OrdersRepository {
     });
   }
 
-  create({ items, ...order }: NewOrder, db: Db): Promise<OrderWithDetails> {
-    return db.order.create({
+  create({ items, ...order }: NewOrder): Promise<OrderWithDetails> {
+    return this.db.order.create({
       data: {
         ...order,
 
@@ -77,8 +83,8 @@ export class OrdersRepository {
     });
   }
 
-  update(id: number, dto: UpdateOrderDto, db: Db): Promise<OrderWithDetails> {
-    return db.order.update({
+  update(id: number, dto: UpdateOrderDto): Promise<OrderWithDetails> {
+    return this.db.order.update({
       where: {
         id,
       },
@@ -89,8 +95,22 @@ export class OrdersRepository {
     });
   }
 
-  countUnservedItems(id: number, db: Db): Promise<number> {
-    return db.orderItem.count({
+  async tableNumberOf(tableId: number): Promise<number> {
+    const table = await this.db.restaurantTable.findUniqueOrThrow({
+      where: {
+        id: tableId,
+      },
+
+      select: {
+        tableNumber: true,
+      },
+    });
+
+    return table.tableNumber;
+  }
+
+  countUnservedItems(id: number): Promise<number> {
+    return this.db.orderItem.count({
       where: {
         orderId: id,
         status: {
@@ -100,8 +120,8 @@ export class OrdersRepository {
     });
   }
 
-  close(id: number, db: Db): Promise<OrderWithDetails> {
-    return db.order.update({
+  close(id: number): Promise<OrderWithDetails> {
+    return this.db.order.update({
       where: {
         id,
       },
@@ -115,8 +135,8 @@ export class OrdersRepository {
     });
   }
 
-  remove(id: number, db: Db): Promise<OrderWithDetails> {
-    return db.order.delete({
+  remove(id: number): Promise<OrderWithDetails> {
+    return this.db.order.delete({
       where: {
         id,
       },

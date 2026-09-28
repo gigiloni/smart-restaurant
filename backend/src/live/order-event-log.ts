@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 
 import type { OrderEvent, ProductType } from '@smart-restaurant/contracts';
 
-import type { Db } from '../database/db.js';
-import { PrismaService } from '../database/prisma.service.js';
+import { TransactionHost } from '@nestjs-cls/transactional';
+
+import type { PrismaAdapter } from '../database/transaction.js';
 
 /**
  * An event as delivered, together with what decides who may see it. The
@@ -33,18 +34,26 @@ export const LOG_RETENTION_HOURS = 24;
  */
 @Injectable()
 export class OrderEventLog {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
+
+  /**
+   * The current transaction's client — the snapshot's, when called from it —
+   * or the plain client, as for the background feed.
+   */
+  private get db() {
+    return this.txHost.tx;
+  }
 
   /** Id of the newest committed event, or 0 before the first. */
-  async head(db: Db = this.prisma): Promise<number> {
-    const counter = await db.orderEventCounter.findUniqueOrThrow({ where: { id: 1 } });
+  async head(): Promise<number> {
+    const counter = await this.db.orderEventCounter.findUniqueOrThrow({ where: { id: 1 } });
 
     return Number(counter.value);
   }
 
   /** Up to `LOG_PAGE_SIZE` committed events after `cursor`, oldest first. */
   async after(cursor: number): Promise<LoggedOrderEvent[]> {
-    const rows = await this.prisma.orderEvent.findMany({
+    const rows = await this.db.orderEvent.findMany({
       where: { id: { gt: cursor } },
       orderBy: { id: 'asc' },
       take: LOG_PAGE_SIZE,
@@ -69,7 +78,7 @@ export class OrderEventLog {
    * not ordered by id, and deleting by time alone could leave a hole.
    */
   async prune(): Promise<number> {
-    return this.prisma.$executeRaw`
+    return this.db.$executeRaw`
       DELETE FROM "Order_Event"
       WHERE order_event_id <= (
         SELECT max(order_event_id) FROM "Order_Event"

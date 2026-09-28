@@ -1,9 +1,13 @@
+import { Injectable } from '@nestjs/common';
+import { TransactionHost } from '@nestjs-cls/transactional';
+
 import type { OrderStatus } from '@smart-restaurant/contracts';
 
-import type { Db } from './db.js';
+import type { PrismaAdapter } from './transaction.js';
 
 /**
- * Row locks that serialise writes to the same order or table session.
+ * Row locks that serialise writes to the same order or table session. Prisma
+ * has no API for `SELECT ... FOR UPDATE`, so the two queries are raw SQL.
  *
  * Every write that depends on an order still being open takes the order's lock
  * first, and every write that depends on a session still being open takes the
@@ -28,23 +32,43 @@ export interface LockedTableSession {
   closedAt: Date | null;
 }
 
-export async function lockOrder(db: Db, id: number): Promise<LockedOrder | null> {
-  const rows = await db.$queryRaw<LockedOrder[]>`
-    SELECT order_id AS id, status::text AS status, table_session_id AS "tableSessionId",
-      employee_id AS "employeeId"
-    FROM "Order"
-    WHERE order_id = ${id}
-    FOR UPDATE`;
+@Injectable()
+export class RowLocks {
+  constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
 
-  return rows[0] ?? null;
-}
+  async order(id: number): Promise<LockedOrder | null> {
+    const rows = await this.db().$queryRaw<LockedOrder[]>`
+      SELECT order_id AS id, status::text AS status, table_session_id AS "tableSessionId",
+        employee_id AS "employeeId"
+      FROM "Order"
+      WHERE order_id = ${id}
+      FOR UPDATE`;
 
-export async function lockTableSession(db: Db, id: number): Promise<LockedTableSession | null> {
-  const rows = await db.$queryRaw<LockedTableSession[]>`
-    SELECT table_session_id AS id, table_id AS "tableId", closed_at AS "closedAt"
-    FROM "Table_Session"
-    WHERE table_session_id = ${id}
-    FOR UPDATE`;
+    return rows[0] ?? null;
+  }
 
-  return rows[0] ?? null;
+  async tableSession(id: number): Promise<LockedTableSession | null> {
+    const rows = await this.db().$queryRaw<LockedTableSession[]>`
+      SELECT table_session_id AS id, table_id AS "tableId", closed_at AS "closedAt"
+      FROM "Table_Session"
+      WHERE table_session_id = ${id}
+      FOR UPDATE`;
+
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Outside a transaction a lock would be released as soon as its statement
+   * finished, protecting nothing — and silently. Fail loudly instead: the
+   * caller is missing `@Transactional()`.
+   */
+  private db() {
+    if (!this.txHost.isTransactionActive()) {
+      throw new Error(
+        'Row locks are only held inside a transaction: call from a @Transactional() method',
+      );
+    }
+
+    return this.txHost.tx;
+  }
 }
