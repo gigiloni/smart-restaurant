@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TransactionHost } from '@nestjs-cls/transactional';
+import { Propagation, TransactionHost, Transactional } from '@nestjs-cls/transactional';
 
 import type { OrderStatus } from '@smart-restaurant/contracts';
 
@@ -23,6 +23,7 @@ export interface LockedOrder {
   id: number;
   status: OrderStatus;
   tableSessionId: number;
+  employeeId: number | null;
 }
 
 export interface LockedTableSession {
@@ -35,9 +36,16 @@ export interface LockedTableSession {
 export class RowLocks {
   constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
 
+  /**
+   * `Propagation.Mandatory`: outside a transaction the lock would be released
+   * as soon as its statement finished, protecting nothing, so it throws
+   * instead. The caller is missing `@Transactional()`.
+   */
+  @Transactional(Propagation.Mandatory)
   async order(id: number): Promise<LockedOrder | null> {
-    const rows = await this.db().$queryRaw<LockedOrder[]>`
-      SELECT order_id AS id, status::text AS status, table_session_id AS "tableSessionId"
+    const rows = await this.txHost.tx.$queryRaw<LockedOrder[]>`
+      SELECT order_id AS id, status::text AS status, table_session_id AS "tableSessionId",
+        employee_id AS "employeeId"
       FROM "Order"
       WHERE order_id = ${id}
       FOR UPDATE`;
@@ -45,28 +53,14 @@ export class RowLocks {
     return rows[0] ?? null;
   }
 
+  @Transactional(Propagation.Mandatory)
   async tableSession(id: number): Promise<LockedTableSession | null> {
-    const rows = await this.db().$queryRaw<LockedTableSession[]>`
+    const rows = await this.txHost.tx.$queryRaw<LockedTableSession[]>`
       SELECT table_session_id AS id, table_id AS "tableId", closed_at AS "closedAt"
       FROM "Table_Session"
       WHERE table_session_id = ${id}
       FOR UPDATE`;
 
     return rows[0] ?? null;
-  }
-
-  /**
-   * Outside a transaction a lock would be released as soon as its statement
-   * finished, protecting nothing — and silently. Fail loudly instead: the
-   * caller is missing `@Transactional()`.
-   */
-  private db() {
-    if (!this.txHost.isTransactionActive()) {
-      throw new Error(
-        'Row locks are only held inside a transaction: call from a @Transactional() method',
-      );
-    }
-
-    return this.txHost.tx;
   }
 }
