@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import type { CreateProductDto, UpdateProductDto } from '@smart-restaurant/contracts';
 
@@ -9,8 +14,8 @@ import { ProductsRepository, type ProductWithDetails } from './products.reposito
 export class ProductsService {
   constructor(private readonly productsRepository: ProductsRepository) {}
 
-  findAll(): Promise<ProductWithDetails[]> {
-    return this.productsRepository.findAll();
+  findAll(ids?: number[]): Promise<ProductWithDetails[]> {
+    return this.productsRepository.findAll(ids);
   }
 
   async findOne(id: number): Promise<ProductWithDetails> {
