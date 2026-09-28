@@ -1,5 +1,13 @@
 import type { INestApplication } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule, type SwaggerDocumentOptions } from '@nestjs/swagger';
+import {
+  DocumentBuilder,
+  SwaggerModule,
+  type OpenAPIObject,
+  type ReferenceObject,
+  type SchemaObject,
+  type SwaggerDocumentOptions,
+} from '@nestjs/swagger';
+import { liveReadySchema, liveResyncSchema, orderEventSchema } from '@smart-restaurant/contracts';
 import { createSchema } from 'zod-openapi';
 
 import { GUEST_COOKIE } from '../auth/access-metadata.js';
@@ -46,22 +54,79 @@ const API_DESCRIPTION = [
   '- **Order items** (`Order_Item`) live under `/orders/{orderId}/items`. Reads and writes are',
   '  scoped by the order, so an item cannot be reached through the wrong parent.',
   '',
-  '### Table sessions and payment',
+  '### Seating and order lifecycles',
   '',
-  "Orders belong to a **table session**: one party's time at a table. The first QR scan — or the first",
-  'order — at a free table opens a session; every later scan joins it. A table has at most one open',
-  'session, so a table is free exactly when no open session names it.',
+  "Orders belong to a **table session**: one party's time at a table, from the first QR scan until",
+  'service clears the table. A table is free exactly when no open session names it.',
   '',
-  '- `POST /orders/{id}/close` takes payment for one order. Everything on it must have been served, and',
-  '  the order is frozen from then on.',
-  '- `POST /table-sessions/{id}/close` clears the table once every order in the session is paid.',
-  '- `PATCH /table-sessions/{id}` moves the whole party, orders included, to a free table.',
+  '#### Seating',
+  '',
+  '```text',
+  '                  QR scan, staff seats, or first order                service clears the table',
+  '   FREE  ─────────────────────────────────────────────►  SEATED  ─────────────────────────────►  FREE',
+  '   (no open session)           session.opened              │  ▲    only once every order is CLOSED',
+  '                                                           │  │              session.closed',
+  '                                                           └──┘',
+  '                                           party moves to a free table: session.moved',
+  '```',
+  '',
+  '| Step | Who | Request | Live event | What the frontend does |',
+  '| --- | --- | --- | --- | --- |',
+  '| Guest scans the QR code | guest | `POST /viewer/guest` with `tableId`, `token`. 201: new party; 200: joined the party already there | `session.opened` on 201 | The `sr_guest` cookie is set; nothing to store. Load the snapshot, open the stream, show the menu (`GET /products`). |',
+  '| Staff seats a party | `SERVICE`, `ADMIN` | `POST /table-sessions` with `tableId`. 201 / 200 as above | `session.opened` on 201 | Show the table as occupied. |',
+  '| First order at a free table | `SERVICE`, `ADMIN` | `POST /orders` | `session.opened`, then `order.created` | Same as seating, then add the order. |',
+  '| Party moves | `SERVICE`, `ADMIN` | `PATCH /table-sessions/{id}` with the free target `tableId`. 409 if it is taken | `session.moved` | Update the session **and every order in it** to the new table. Guests stay connected. |',
+  '| Clear the table | `SERVICE`, `ADMIN` | `POST /table-sessions/{id}/close`. 409 while any order is unpaid | `session.closed` | Staff: drop the session and its orders; the table is free. Guest: the stream ends and the cookie stops working: show a goodbye screen. |',
+  '',
+  'Seating, paying and clearing are idempotent, so a retried request is safe. Scans that arrive at the',
+  'same moment on a free table still land in one session.',
+  '',
+  '#### Order',
+  '',
+  '```text',
+  '   POST /orders ──►  OPEN  ──── every item SERVED, then POST /orders/{id}/close ────►  CLOSED',
+  '                      │                        order.closed                          paid, frozen',
+  '                      └──── DELETE /orders/{id} ────► deleted  (order.deleted)',
+  '```',
+  '',
+  '| Step | Who | Request | Live event |',
+  '| --- | --- | --- | --- |',
+  '| Place an order | `SERVICE` (assigned to themselves), `ADMIN` | `POST /orders` with `tableId` and optional `items` | `order.created` |',
+  "| Add an item | the order's employee, `ADMIN` | `POST /orders/{id}/items` | `item.created` |",
+  '| Prepare an item | `KITCHEN` for `APPETIZER`/`FOOD`, `BAR` for `DRINK`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `IN_PROGRESS`, `READY` | `item.status_changed` |',
+  '| Serve or send back an item | `SERVICE`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE` | `item.status_changed` |',
+  "| Remove an item | the order's employee, `ADMIN` | `DELETE /orders/{id}/items/{itemId}` | `item.deleted` |",
+  '| Reassign the order | `ADMIN` | `PATCH /orders/{id}` with `employeeId` | `order.updated` |',
+  "| Take payment | the order's employee, `ADMIN` | `POST /orders/{id}/close`. 409 while any item is not `SERVED` | `order.closed` |",
+  "| Cancel the order | the order's employee, `ADMIN` | `DELETE /orders/{id}` | `order.deleted` |",
+  '',
+  'Payment is per order: a party may pay order by order, and the table can be cleared once every order is',
+  '`CLOSED`. A closed order is frozen: every change to it or its items returns 409. Items move through',
+  '`OPEN → IN_PROGRESS → READY → SERVED`; see **Order item status** for the permitted moves.',
   '',
   '### Live updates',
   '',
   'Load `GET /live/snapshot`, then open `GET /live/events?since=<cursor>` with an `EventSource`. The stream',
   'sends every change after the snapshot that the caller may see, and resumes from `Last-Event-ID` after a',
-  'dropped connection, so no update is lost. The details are on the two routes.',
+  'dropped connection, so no update is lost. The payloads are the `OrderEvent`, `LiveReady` and `LiveResync`',
+  'schemas below.',
+  '',
+  'A client must follow these rules, or its state drifts from the server:',
+  '',
+  '1. **Snapshot first.** Render the snapshot, then connect with its `cursor` as `since`. Let the browser',
+  '   reconnect by itself: it sends `Last-Event-ID`, which the server prefers over `since`.',
+  '2. **Apply in order, by replacing.** Each event carries the whole entity after the change, or before it',
+  '   for `*.deleted`. Replace the entity by id; do not merge fields. Applying an event twice is harmless.',
+  '3. **`session.moved` moves orders too.** No `order.*` event is sent for the orders of a moved party. Set',
+  "   `tableId` and `table` of every order in that session from the event's `session`.",
+  '4. **On `resync`, start over.** Call `close()` on the EventSource, reload the snapshot and connect again',
+  '   with its cursor. Without `close()`, the browser reconnects into the same `resync` forever.',
+  '5. **Kitchen and bar: hide orders with no items.** When the last item for the station is deleted, the',
+  "   order stays in the client's state with no items left.",
+  '6. **One EventSource per tab.** Browsers allow about six HTTP/1.1 connections per origin, and every',
+  "   open stream holds one. Share a single stream across the app's views.",
+  '7. **Guests: `session.closed` ends it.** The stream closes and the guest cookie stops working. Show a',
+  '   goodbye screen, not a reconnect spinner.',
   '',
   '### Order item status',
   '',
@@ -143,6 +208,8 @@ export function setupSwagger(app: INestApplication): void {
 
   const document = SwaggerModule.createDocument(app, config, documentOptions);
 
+  documentLiveEvents(document);
+
   // The one route that needs no identity: it is how a guest gets one.
   const enterAsGuest = document.paths['/api/viewer/guest']?.post;
   if (enterAsGuest) {
@@ -211,4 +278,39 @@ export function setupSwagger(app: INestApplication): void {
       tagsSorter: 'alpha',
     },
   });
+}
+
+/**
+ * No route returns the SSE message payloads as JSON, so Nest never registers
+ * their schemas. Add them as components and point the stream's response at
+ * them, so the event shapes can be read in the docs.
+ */
+function documentLiveEvents(document: OpenAPIObject): void {
+  const components = (document.components ??= {});
+  const schemas = (components.schemas ??= {});
+
+  const refs = [orderEventSchema, liveReadySchema, liveResyncSchema].map((schema) => {
+    const { schema: converted, components: nested } = createSchema(schema, {
+      io: 'output',
+      openapiVersion: '3.0.0',
+    });
+
+    Object.assign(schemas, nested);
+
+    return converted;
+  });
+
+  const stream = document.paths['/api/live/events']?.get?.responses?.['200'];
+
+  if (stream && !('$ref' in stream)) {
+    stream.content = {
+      'text/event-stream': {
+        schema: {
+          description:
+            "Each message's `data` is one of these, as JSON: an `OrderEvent` for a change (the SSE `event` is its `type`), `LiveReady` for `event: ready`, `LiveResync` for `event: resync`.",
+          oneOf: refs as (SchemaObject | ReferenceObject)[],
+        },
+      },
+    };
+  }
 }
