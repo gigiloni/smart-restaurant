@@ -473,7 +473,11 @@ orders. `skip` counts rows rather than pages, so the second page of twenty is
 for one row more than you intend to show to find out whether another page
 exists.
 
-Every other collection is returned whole.
+Every other collection is returned whole. `GET /products` can instead be
+narrowed to the products a client needs, such as a cart's:
+`GET /products?ids=3,1,7`. `?ids=3&ids=1` works too. The same lookup is
+available with a JSON body: `POST /products-by-id` with `{ "ids": [3, 1, 7] }`.
+At most 100 ids are accepted. Unknown ids are left out of the result.
 
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:
