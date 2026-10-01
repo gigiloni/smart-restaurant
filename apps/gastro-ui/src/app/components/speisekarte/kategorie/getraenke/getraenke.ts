@@ -1,6 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { DataViewModule } from 'primeng/dataview';
-import { Product } from '../../../../interfaces/product';
+import { Product } from '@smart-restaurant/contracts';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ProductService } from '../../../../services/product-service';
 
 @Component({
   selector: 'app-getraenke',
@@ -9,13 +11,18 @@ import { Product } from '../../../../interfaces/product';
   styleUrl: './getraenke.css',
 })
 export class Getraenke {
-  produkte = signal<Product[]>([]);
+  productsInSpeisekarte = signal<Product[]>([]);
+  private productService: ProductService = inject(ProductService);
+  private destroyRef: DestroyRef = inject(DestroyRef);
 
   constructor() {
-    this.produkte.set([
-      { id: 1, name: 'spagetti', description: 'Spaghetti al Pomodoro San Marzano', price: 24 },
-      { id: 2, name: 'tagliatelle', description: 'Tagliatelle al Ragù della Casa', price: 29 },
-      { id: 3, name: 'involtini', description: 'Involtini di Melanzane alla Siciliana', price: 26 },
-    ]);
+    this.productService
+      .getProducts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (products: Product[]) => {
+          this.productsInSpeisekarte.set(products);
+        },
+      });
   }
 }
