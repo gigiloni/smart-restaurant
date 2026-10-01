@@ -10,10 +10,10 @@ export class ProductService {
   protected http = inject(HttpClient);
   protected messageService = inject(MessageService);
 
-  protected productsInWarenkorb = signal<Product[]>([]);
+  public productsInWarenkorb = signal<Product[]>([]);
 
   getProductsById(productIdList: number[]) {
-    this.http.post<Product[]>('/products/getProductsById', productIdList).subscribe({
+    this.http.post<Product[]>('/ProductsById', {ids: productIdList}).subscribe({
       next: products => {
         this.productsInWarenkorb.set(products);
       },
