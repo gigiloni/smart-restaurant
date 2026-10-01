@@ -17,12 +17,16 @@ import {
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { AccessService } from '../auth/access.service.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+import { Transactional } from '@nestjs-cls/transactional';
+
+import { OrderLock, type OrderChange } from '../orders/order-lock.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.repository.js';
 
 @Injectable()
 export class OrderItemsService {
   constructor(
+    private readonly orderLock: OrderLock,
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
     private readonly access: AccessService,
@@ -46,11 +50,13 @@ export class OrderItemsService {
     return orderItem;
   }
 
-  async create(orderId: number, dto: CreateOrderItemDto): Promise<OrderItemWithDetails> {
-    await this.ordersService.findOne(orderId);
-
+  async create(
+    orderId: number,
+    dto: CreateOrderItemDto,
+    by: OrderChange,
+  ): Promise<OrderItemWithDetails> {
     try {
-      return await this.orderItemsRepository.create(orderId, dto);
+      return await this.addToOpenOrder(orderId, dto, by);
     } catch (error) {
       if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation)) {
         throw new BadRequestException(`Product ${dto.productId} does not exist`);
@@ -60,13 +66,27 @@ export class OrderItemsService {
     }
   }
 
+  /**
+   * Holding the order's lock for the whole check-and-write means the item is
+   * classified against the status it really has: a concurrent change either
+   * finished before this one read the item, or waits until this one is done.
+   */
+  @Transactional()
   async update(
     orderId: number,
     id: number,
     dto: UpdateOrderItemDto,
     actor: AuthenticatedEmployee,
   ): Promise<OrderItemWithDetails> {
-    const orderItem = await this.findOne(orderId, id);
+    // Anyone whose role may make this move may make it, owner or not.
+    await this.orderLock.forChange(orderId);
+
+    const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id);
+
+    if (!orderItem) {
+      throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
+    }
+
     this.access.requireStatusChange(actor, orderItem.product.type, dto.status);
 
     const kind = classifyOrderItemTransition(orderItem.status, dto.status, orderItem.product.type);
@@ -77,23 +97,17 @@ export class OrderItemsService {
       );
     }
 
-    // Re-sending the current status is accepted so a retried request is safe,
-    // but there is nothing to write.
+    // Re-sending the current status is accepted so a retried request is
+    // safe, but there is nothing to write.
     if (kind === 'unchanged') {
       return orderItem;
     }
 
     const updated = await this.orderItemsRepository.updateWhenStatusIs(id, orderItem.status, dto);
 
-    // The item moved between the check above and the write. Rather than guess
-    // whether the move is still legal from wherever it landed, report the
-    // current status so the caller can decide against what is actually true.
     if (updated === null) {
-      const current = await this.orderItemsRepository.findByOrderAndId(orderId, id);
-
       throw new ConflictException(
         `Order item ${id} was changed by another request while this one was in flight. ` +
-          `It was ${orderItem.status} and is now ${current?.status ?? 'deleted'}. ` +
           `Re-read the item and retry against its current status.`,
       );
     }
@@ -101,10 +115,28 @@ export class OrderItemsService {
     return updated;
   }
 
-  async remove(orderId: number, id: number): Promise<OrderItemWithDetails> {
-    await this.findOne(orderId, id);
+  @Transactional()
+  async remove(orderId: number, id: number, by: OrderChange): Promise<OrderItemWithDetails> {
+    await this.orderLock.forChange(orderId, by);
+
+    const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id);
+
+    if (!orderItem) {
+      throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
+    }
 
     return this.orderItemsRepository.remove(id);
+  }
+
+  @Transactional()
+  private async addToOpenOrder(
+    orderId: number,
+    dto: CreateOrderItemDto,
+    by: OrderChange,
+  ): Promise<OrderItemWithDetails> {
+    await this.orderLock.forChange(orderId, by);
+
+    return this.orderItemsRepository.create(orderId, dto);
   }
 
   /**

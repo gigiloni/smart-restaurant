@@ -68,10 +68,11 @@ export class TablesService {
     try {
       return await this.tablesRepository.remove(id);
     } catch (error) {
-      // Orders reference their table; those references are not cascaded away.
+      // Sessions and orders reference their table; neither is cascaded away,
+      // so a table that has ever seated a party stays on the books.
       if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation)) {
         throw new ConflictException(
-          `Table ${id} still has at least one order`,
+          `Table ${id} has seated at least one party`,
         );
       }
 

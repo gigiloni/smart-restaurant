@@ -6,7 +6,8 @@ import { createOrderItemSchema } from '../order-items/create-order-item.schema.j
 
 export const orderInputSchema = z.object({
   tableId: positiveInt32Schema.meta({
-    description: 'Id of an existing table. Unknown ids are rejected by the database.',
+    description:
+      'Id of an existing table. The order joins the open table session there, and opens one if the table is free.',
     example: 1,
   }),
 
@@ -33,7 +34,7 @@ export const createOrderSchema = orderInputSchema
     id: 'CreateOrder',
     title: 'Create order',
     description:
-      'Payload for opening an order. `items` is optional: an order may be opened empty and filled later through `/orders/{orderId}/items`.',
+      'Payload for opening an order at a table. `items` is optional: an order may be opened empty and filled later through `/orders/{orderId}/items`.',
   });
 
 export type CreateOrderDto = z.infer<typeof createOrderSchema>;

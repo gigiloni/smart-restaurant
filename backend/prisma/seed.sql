@@ -15,6 +15,7 @@ BEGIN;
 TRUNCATE TABLE
   "Order_Item",
   "Order",
+  "Table_Session",
   "Product_Ingredient",
   "Product",
   "Ingredient",
@@ -170,19 +171,38 @@ INSERT INTO "Product_Ingredient" (product_id, ingredient_id, amount) VALUES
   (20, 31, 2), (20, 37, 20);
 
 --
--- Orders. Order 6 has no employee assigned, exercising the nullable FK.
+-- Table sessions: one party's time at a table. Tables 1, 3 and 5 each seated an
+-- earlier party that has paid and left, so those sessions are closed; tables 3
+-- and 5 have since seated a new party. Table 1 is free again.
 --
-INSERT INTO "Order" (order_id, table_id, employee_id) VALUES
-  (1,  1, 2),
-  (2,  3, 2),
-  (3,  5, 3),
-  (4,  2, 3),
-  (5,  7, 2),
-  (6,  4, NULL),
-  (7,  6, 3),
-  (8,  8, 2),
-  (9,  3, 3),
-  (10, 5, 2);
+INSERT INTO "Table_Session" (table_session_id, table_id, opened_at, closed_at) VALUES
+  (1,  1, now() - interval '3 hours',          now() - interval '2 hours'),
+  (2,  3, now() - interval '3 hours',          now() - interval '1 hour 45 minutes'),
+  (3,  5, now() - interval '2 hours 30 minutes', now() - interval '1 hour 30 minutes'),
+  (4,  2, now() - interval '50 minutes',       NULL),
+  (5,  7, now() - interval '45 minutes',       NULL),
+  (6,  4, now() - interval '40 minutes',       NULL),
+  (7,  6, now() - interval '35 minutes',       NULL),
+  (8,  8, now() - interval '15 minutes',       NULL),
+  (9,  3, now() - interval '10 minutes',       NULL),
+  (10, 5, now() - interval '5 minutes',        NULL);
+
+--
+-- Orders. Orders 1-3 are paid, so they are CLOSED and belong to the closed
+-- sessions above; every item on them is SERVED, as closing requires. Order 6
+-- has no employee assigned, exercising the nullable FK.
+--
+INSERT INTO "Order" (order_id, table_session_id, table_id, employee_id, status, closed_at) VALUES
+  (1,  1,  1, 2,    'CLOSED', now() - interval '2 hours 5 minutes'),
+  (2,  2,  3, 2,    'CLOSED', now() - interval '1 hour 50 minutes'),
+  (3,  3,  5, 3,    'CLOSED', now() - interval '1 hour 35 minutes'),
+  (4,  4,  2, 3,    'OPEN',   NULL),
+  (5,  5,  7, 2,    'OPEN',   NULL),
+  (6,  6,  4, NULL, 'OPEN',   NULL),
+  (7,  7,  6, 3,    'OPEN',   NULL),
+  (8,  8,  8, 2,    'OPEN',   NULL),
+  (9,  9,  3, 3,    'OPEN',   NULL),
+  (10, 10, 5, 2,    'OPEN',   NULL);
 
 --
 -- Order items. Covers every OrderItemStatus variant: SERVED, READY,
@@ -246,6 +266,7 @@ SELECT setval('"Employee_employee_id_seq"',     (SELECT MAX(employee_id)   FROM 
 SELECT setval('"Table_table_id_seq"',           (SELECT MAX(table_id)      FROM "Table"));
 SELECT setval('"Ingredient_ingredient_id_seq"', (SELECT MAX(ingredient_id) FROM "Ingredient"));
 SELECT setval('"Product_product_id_seq"',       (SELECT MAX(product_id)    FROM "Product"));
+SELECT setval('"Table_Session_table_session_id_seq"', (SELECT MAX(table_session_id) FROM "Table_Session"));
 SELECT setval('"Order_order_id_seq"',           (SELECT MAX(order_id)      FROM "Order"));
 SELECT setval('"Order_Item_order_item_id_seq"', (SELECT MAX(order_item_id) FROM "Order_Item"));
 

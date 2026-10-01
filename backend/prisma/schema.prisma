@@ -23,6 +23,13 @@ enum OrderItemStatus {
   REMAKE
 }
 
+/// An order is OPEN while guests can still add to it, and CLOSED once it has been
+/// paid. A closed order is frozen.
+enum OrderStatus {
+  OPEN
+  CLOSED
+}
+
 enum ProductType {
   FOOD
   DRINK
@@ -119,7 +126,8 @@ model RestaurantTable {
   tableNumber Int @unique @map("table_number")
   seats       Int @default(0)
 
-  orders Order[]
+  orders   Order[]
+  sessions TableSession[]
 
   @@map("Table")
 }
@@ -137,15 +145,44 @@ model Product {
   @@map("Product")
 }
 
+/// One party's time at a table, from the first QR scan until service clears the
+/// table. Orders belong to a session rather than directly to a table, so guest
+/// access can be bound to the session and revoked when the table is cleared.
+///
+/// A table has at most one open session. That is enforced by a partial unique
+/// index added by hand in the migration, since Prisma cannot express it.
+model TableSession {
+  id       Int       @id @default(autoincrement()) @map("table_session_id")
+  tableId  Int       @map("table_id")
+  openedAt DateTime  @default(now()) @map("opened_at")
+  closedAt DateTime? @map("closed_at")
+
+  table  RestaurantTable @relation(fields: [tableId], references: [id])
+  orders Order[]
+
+  // Target of the composite foreign key from Order, which keeps Order.table_id
+  // equal to its session's table even when the session moves.
+  @@unique([id, tableId])
+  @@index([tableId])
+  @@map("Table_Session")
+}
+
 model Order {
-  id         Int  @id @default(autoincrement()) @map("order_id")
-  tableId    Int  @map("table_id")
-  employeeId Int? @map("employee_id")
+  id             Int         @id @default(autoincrement()) @map("order_id")
+  tableSessionId Int         @map("table_session_id")
+  tableId        Int         @map("table_id")
+  employeeId     Int?        @map("employee_id")
+  status         OrderStatus @default(OPEN)
+  closedAt       DateTime?   @map("closed_at")
 
-  table      RestaurantTable @relation(fields: [tableId], references: [id])
-  employee   Employee?       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  orderItems OrderItem[]
+  // `tableId` is denormalised for reads, and kept honest by the composite key:
+  // moving a session to another table cascades the new table onto its orders.
+  tableSession TableSession    @relation(fields: [tableSessionId, tableId], references: [id, tableId], onUpdate: Cascade)
+  table        RestaurantTable @relation(fields: [tableId], references: [id])
+  employee     Employee?       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  orderItems   OrderItem[]
 
+  @@index([tableSessionId])
   @@map("Order")
 }
 
