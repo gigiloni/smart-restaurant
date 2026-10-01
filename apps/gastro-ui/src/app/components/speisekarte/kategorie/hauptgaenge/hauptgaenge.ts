@@ -3,6 +3,7 @@ import { DataViewModule } from 'primeng/dataview';
 import { Product } from '@smart-restaurant/contracts';
 import { ProductService } from '../../../../services/product-service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MessageService } from 'primeng/api';
 
 @Component({
   selector: 'app-hauptgaenge',
@@ -12,8 +13,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 })
 export class Hauptgaenge {
   productsInSpeisekarte = signal<Product[]>([]);
+
   private productService: ProductService = inject(ProductService);
   private destroyRef: DestroyRef = inject(DestroyRef);
+  private messageService = inject(MessageService);
 
   constructor() {
     this.productService
@@ -22,6 +25,13 @@ export class Hauptgaenge {
       .subscribe({
         next: (products: Product[]) => {
           this.productsInSpeisekarte.set(products);
+        },
+        error: (error) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Fehler',
+            detail: 'Die Methode getProducts() in Kategorie/Hauptgänge.',
+          });
         },
       });
   }

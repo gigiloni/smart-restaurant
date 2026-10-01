@@ -33,7 +33,7 @@ export class Vorspeisen {
           this.messageService.add({
             severity: 'error',
             summary: 'Fehler',
-            detail: 'Produkte im Speisekarte konnte nicht geladen werden.',
+            detail: 'Die Methode getProducts() in Kategorie/Vorspeisen.',
           });
         },
       });
