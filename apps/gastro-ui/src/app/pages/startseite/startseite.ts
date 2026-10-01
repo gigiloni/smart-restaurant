@@ -1,15 +1,8 @@
-import {AfterViewInit, Component, inject} from '@angular/core';
-import { Trefferliste } from '../../components/trefferliste/trefferliste';
-import {Select} from "primeng/select";
-import {FloatLabel} from "primeng/floatlabel";
-import { TableService } from '../../services/table-service';
-import type {Table} from "@smart-restaurant/contracts"
-import {FormsModule} from "@angular/forms";
-import {Router} from "@angular/router";
+import { Component } from '@angular/core';
 
 @Component({
   selector: 'app-startseite',
-  imports: [Trefferliste, Select, FloatLabel, FormsModule],
+  imports: [],
   templateUrl: './startseite.html',
   styleUrl: './startseite.css',
 })

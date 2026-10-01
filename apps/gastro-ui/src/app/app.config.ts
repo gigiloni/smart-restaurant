@@ -15,7 +15,7 @@ export const appConfig: ApplicationConfig = {
       theme: {
         preset: GastroTheme,
         options: {
-          darkModeSelector: false,
+          darkModeSelector: true,
         },
       },
     }),
