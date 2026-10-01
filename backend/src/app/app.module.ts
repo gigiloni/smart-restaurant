@@ -17,6 +17,7 @@ import { OrdersModule } from '../orders/orders.module.js';
 import { ProductsModule } from '../products/products.module.js';
 import { TableSessionsModule } from '../table-sessions/table-sessions.module.js';
 import { TablesModule } from '../tables/tables.module.js';
+import { ViewerModule } from '../viewer/viewer.module.js';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { TablesModule } from '../tables/tables.module.js';
     ProductsModule,
     TableSessionsModule,
     TablesModule,
+    ViewerModule,
   ],
 })
 export class AppModule {}

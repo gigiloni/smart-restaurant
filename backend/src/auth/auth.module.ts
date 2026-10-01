@@ -4,10 +4,16 @@ import { APP_GUARD } from '@nestjs/core';
 import { AccessService } from './access.service.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
+import { GuestAccessService } from './guest-access.service.js';
 
 @Global()
 @Module({
-  providers: [AuthService, AccessService, { provide: APP_GUARD, useClass: AuthGuard }],
-  exports: [AuthService, AccessService],
+  providers: [
+    AuthService,
+    AccessService,
+    GuestAccessService,
+    { provide: APP_GUARD, useClass: AuthGuard },
+  ],
+  exports: [AuthService, AccessService, GuestAccessService],
 })
 export class AuthModule {}

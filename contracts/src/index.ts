@@ -7,3 +7,4 @@ export * from './lib/orders/index.js';
 export * from './lib/products/index.js';
 export * from './lib/table-sessions/index.js';
 export * from './lib/tables/index.js';
+export * from './lib/viewer/index.js';

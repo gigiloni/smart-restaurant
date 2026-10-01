@@ -6,11 +6,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Reflector } from '@nestjs/core';
 import { fromNodeHeaders } from 'better-auth/node';
 
 import { PrismaService } from '../database/prisma.service.js';
+import { ALLOW_ANONYMOUS, ALLOW_GUESTS } from './access-metadata.js';
 import { AuthService } from './auth.service.js';
-import type { AuthenticatedRequest } from './auth.types.js';
+import type { AuthenticatedEmployee, AuthenticatedRequest } from './auth.types.js';
+import { GuestAccessService } from './guest-access.service.js';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -18,6 +21,8 @@ export class AuthGuard implements CanActivate {
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly reflector: Reflector,
+    private readonly guestAccess: GuestAccessService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -33,24 +38,50 @@ export class AuthGuard implements CanActivate {
         throw new ForbiddenException('Origin is not allowed');
       }
     }
+
+    const targets = [context.getHandler(), context.getClass()];
+    const allowAnonymous = this.reflector.getAllAndOverride<boolean>(ALLOW_ANONYMOUS, targets);
+    const allowGuests = this.reflector.getAllAndOverride<boolean>(ALLOW_GUESTS, targets);
+
+    const employee = await this.findEmployee(request);
+
+    if (employee) {
+      request.employee = employee;
+      request.viewer = { kind: 'staff', employeeId: employee.id, role: employee.role };
+      return true;
+    }
+
+    if (allowGuests || allowAnonymous) {
+      const guest = await this.guestAccess.resolve(request.headers.cookie);
+
+      if (guest) {
+        request.viewer = guest;
+        return true;
+      }
+    }
+
+    if (allowAnonymous) {
+      return true;
+    }
+
+    throw new UnauthorizedException(
+      allowGuests ? 'Login or scan the QR code on your table' : 'Login required',
+    );
+  }
+
+  /** The employee behind the request's Better Auth session, if there is one. */
+  private async findEmployee(request: AuthenticatedRequest): Promise<AuthenticatedEmployee | null> {
     const session = await this.authService.auth.api.getSession({
       headers: fromNodeHeaders(request.headers),
     });
 
     if (!session) {
-      throw new UnauthorizedException('Login required');
+      return null;
     }
 
-    const employee = await this.prisma.employee.findUnique({
+    return this.prisma.employee.findUnique({
       where: { authUserId: session.user.id },
       select: { id: true, role: true },
     });
-
-    if (!employee) {
-      throw new UnauthorizedException('No active employee account');
-    }
-
-    request.employee = employee;
-    return true;
   }
 }

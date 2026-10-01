@@ -8,6 +8,7 @@ import {
   type ProductsByIdDto,
 } from '@smart-restaurant/contracts';
 
+import { AllowGuests } from '../auth/access-metadata.js';
 import { ApiValidationErrorResponse } from '../swagger/api-docs.decorators.js';
 import { ProductsService } from './products.service.js';
 
@@ -22,13 +23,15 @@ export class ProductsByIdController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
+  @AllowGuests()
   @HttpCode(200)
   @ApiOperation({
     summary: 'Look up products by id',
     description:
       'Returns the products whose ids are in the body, sorted by name, each with its recipe resolved: for example the products of a cart or an order.\n\n' +
       'The same lookup as `GET /products?ids=3,1,7`, with the ids sent as JSON instead. Nothing is created or changed, so it answers 200 and is safe to repeat.\n\n' +
-      'Ids that match no product are left out rather than failing the request, so compare the result with what you asked for. Duplicates are ignored.',
+      'Ids that match no product are left out rather than failing the request, so compare the result with what you asked for. Duplicates are ignored.\n\n' +
+      'Guests seated through a QR code can use it too, like the menu.',
   })
   @ApiOkResponse({
     description: 'The products found, sorted by name.',

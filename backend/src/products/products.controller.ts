@@ -13,6 +13,7 @@ import {
   type UpdateProductDto,
 } from '@smart-restaurant/contracts';
 
+import { AllowGuests } from '../auth/access-metadata.js';
 import { AccessService } from '../auth/access.service.js';
 import { CurrentEmployee } from '../auth/current-employee.decorator.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
@@ -34,11 +35,13 @@ export class ProductsController {
   ) {}
 
   @Get()
+  @AllowGuests()
   @ApiOperation({
     summary: 'List products',
     description:
       'Returns every product on the menu, sorted by name, each with its recipe resolved. The list is not paginated.\n\n' +
-      'Pass `ids` to get only some products, for example the ones in a cart or on an order: `?ids=3,1,7`. The result is still sorted by name, not in the order asked for. Ids that match no product are left out rather than failing the request.',
+      'Pass `ids` to get only some products, for example the ones in a cart or on an order: `?ids=3,1,7`. The result is still sorted by name, not in the order asked for. Ids that match no product are left out rather than failing the request.\n\n' +
+      'Guests seated through a QR code can read this too: it is the menu.',
   })
   @ApiOkResponse({
     description: 'The products, sorted by name.',
@@ -53,9 +56,11 @@ export class ProductsController {
   }
 
   @Get(':id')
+  @AllowGuests()
   @ApiOperation({
     summary: 'Get one product',
-    description: 'Returns a single product with its recipe resolved.',
+    description:
+      'Returns a single product with its recipe resolved. Guests seated through a QR code can read this too.',
   })
   @ApiIdParam('id', 'Id of the product to return.')
   @ApiOkResponse({ description: 'The requested product.', standardSchema: productSchema })
