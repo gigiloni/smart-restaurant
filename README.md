@@ -563,6 +563,33 @@ getting in between.
   aborts the transaction, so nothing else can run in it. Methods that open
   several transactions of their own (`openOrJoin`, order creation) use
   `Propagation.Never` and throw if called inside one.
+- **Order events** are written with `OrderEventsWriter` as the last write of the
+  transaction that makes the change. It throws outside a transaction, so an
+  event can never commit without its change.
+
+### Order events
+
+Every change to a table session, an order or an order item is also recorded as
+an **order event**, in the same transaction as the change itself. The event log
+(`Order_Event`) is what the live updates replay from, so a client that was
+disconnected can catch up on exactly what it missed.
+
+| Event | Written when |
+| --- | --- |
+| `session.opened` / `session.moved` / `session.closed` | a party is seated, moves table, or leaves |
+| `order.created` / `order.updated` / `order.closed` / `order.deleted` | an order is placed, reassigned, paid or deleted |
+| `item.created` / `item.status_changed` / `item.deleted` | an item is added later, moves through the kitchen, or is removed |
+
+Order events carry their items; `order.deleted` accounts for the items deleted
+with it. Item events carry enough of their order — table number included — to be
+shown on their own. Requests that change nothing (re-sending a status, paying a
+paid order, re-scanning a QR code) and requests that fail write no event.
+
+Event ids come from a single-row counter rather than a sequence. Bumping it
+takes a row lock held until commit, so ids are handed out in commit order: once
+event *n* is visible, every event before it is too, and the last id a client has
+applied is a complete cursor. The event shapes live in `contracts`
+(`orderEventSchema`).
 
 ### Order item status
 

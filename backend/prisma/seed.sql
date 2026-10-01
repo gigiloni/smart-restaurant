@@ -13,6 +13,7 @@
 BEGIN;
 
 TRUNCATE TABLE
+  "Order_Event",
   "Order_Item",
   "Order",
   "Table_Session",
@@ -266,6 +267,12 @@ SELECT setval('"Employee_employee_id_seq"',     (SELECT MAX(employee_id)   FROM 
 SELECT setval('"Table_table_id_seq"',           (SELECT MAX(table_id)      FROM "Table"));
 SELECT setval('"Ingredient_ingredient_id_seq"', (SELECT MAX(ingredient_id) FROM "Ingredient"));
 SELECT setval('"Product_product_id_seq"',       (SELECT MAX(product_id)    FROM "Product"));
+-- The seed replaces every order, so the event log describing the old ones goes
+-- with them. The counter restarts too; a live client holding a cursor from
+-- before the reset is told to resynchronise, because its cursor is now ahead of
+-- the log.
+UPDATE "Order_Event_Counter" SET value = 0 WHERE id = 1;
+
 SELECT setval('"Table_Session_table_session_id_seq"', (SELECT MAX(table_session_id) FROM "Table_Session"));
 SELECT setval('"Order_order_id_seq"',           (SELECT MAX(order_id)      FROM "Order"));
 SELECT setval('"Order_Item_order_item_id_seq"', (SELECT MAX(order_item_id) FROM "Order_Item"));

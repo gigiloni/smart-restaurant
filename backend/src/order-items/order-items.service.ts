@@ -19,6 +19,7 @@ import { AccessService } from '../auth/access.service.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import { Transactional } from '@nestjs-cls/transactional';
 
+import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { OrderLock, type OrderChange } from '../orders/order-lock.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.repository.js';
@@ -27,6 +28,7 @@ import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.r
 export class OrderItemsService {
   constructor(
     private readonly orderLock: OrderLock,
+    private readonly events: OrderEventsWriter,
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
     private readonly access: AccessService,
@@ -112,6 +114,8 @@ export class OrderItemsService {
       );
     }
 
+    await this.events.itemStatusChanged(updated, orderItem.status);
+
     return updated;
   }
 
@@ -125,7 +129,11 @@ export class OrderItemsService {
       throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
     }
 
-    return this.orderItemsRepository.remove(id);
+    const removed = await this.orderItemsRepository.remove(id);
+
+    await this.events.itemDeleted(removed);
+
+    return removed;
   }
 
   @Transactional()
@@ -136,7 +144,11 @@ export class OrderItemsService {
   ): Promise<OrderItemWithDetails> {
     await this.orderLock.forChange(orderId, by);
 
-    return this.orderItemsRepository.create(orderId, dto);
+    const created = await this.orderItemsRepository.create(orderId, dto);
+
+    await this.events.itemCreated(created);
+
+    return created;
   }
 
   /**

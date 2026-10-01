@@ -11,6 +11,7 @@ import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { Propagation, Transactional } from '@nestjs-cls/transactional';
 
 import { RowLocks } from '../database/row-locks.js';
+import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { TableSessionsService } from '../table-sessions/table-sessions.service.js';
 import { OrderLock, type OrderChange } from './order-lock.js';
 import { OrdersRepository, type OrderWithDetails } from './orders.repository.js';
@@ -20,6 +21,7 @@ export class OrdersService {
   constructor(
     private readonly locks: RowLocks,
     private readonly orderLock: OrderLock,
+    private readonly events: OrderEventsWriter,
     private readonly ordersRepository: OrdersRepository,
     private readonly tableSessionsService: TableSessionsService,
   ) {}
@@ -86,11 +88,15 @@ export class OrdersService {
       return null;
     }
 
-    return this.ordersRepository.create({
+    const created = await this.ordersRepository.create({
       ...dto,
       tableSessionId: locked.id,
       tableId: locked.tableId,
     });
+
+    await this.events.orderCreated(created);
+
+    return created;
   }
 
   async update(id: number, dto: UpdateOrderDto, by: OrderChange): Promise<OrderWithDetails> {
@@ -109,7 +115,11 @@ export class OrdersService {
   ): Promise<OrderWithDetails> {
     await this.orderLock.forChange(id, by);
 
-    return this.ordersRepository.update(id, dto);
+    const updated = await this.ordersRepository.update(id, dto);
+
+    await this.events.orderUpdated(updated);
+
+    return updated;
   }
 
   /**
@@ -133,14 +143,25 @@ export class OrdersService {
       );
     }
 
-    return this.ordersRepository.close(id);
+    const closed = await this.ordersRepository.close(id);
+
+    await this.events.orderClosed(closed);
+
+    return closed;
   }
 
   @Transactional()
   async remove(id: number, by: OrderChange): Promise<OrderWithDetails> {
     await this.orderLock.forChange(id, by);
 
-    return this.ordersRepository.remove(id);
+    // The delete returns the order with its items as they were, and the
+    // cascade removes those items in the same statement, so this one event
+    // accounts for every item that disappears with it.
+    const removed = await this.ordersRepository.remove(id);
+
+    await this.events.orderDeleted(removed);
+
+    return removed;
   }
 
   /**

@@ -11,6 +11,7 @@ import { DatabaseModule } from '../database/database.module.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { EmployeesModule } from '../employees/employees.module.js';
 import { IngredientsModule } from '../ingredients/ingredients.module.js';
+import { OrderEventsModule } from '../order-events/order-events.module.js';
 import { OrderItemsModule } from '../order-items/order-items.module.js';
 import { OrdersModule } from '../orders/orders.module.js';
 import { ProductsModule } from '../products/products.module.js';
@@ -36,6 +37,7 @@ import { TablesModule } from '../tables/tables.module.js';
         }),
       ],
     }),
+    OrderEventsModule,
     AuthModule,
 
     EmployeesModule,

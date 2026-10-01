@@ -9,6 +9,7 @@ import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { Propagation, Transactional } from '@nestjs-cls/transactional';
 
 import { RowLocks } from '../database/row-locks.js';
+import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import {
   TableSessionsRepository,
   type TableSessionWithDetails,
@@ -26,6 +27,7 @@ export interface OpenedTableSession {
 export class TableSessionsService {
   constructor(
     private readonly locks: RowLocks,
+    private readonly events: OrderEventsWriter,
     private readonly tableSessionsRepository: TableSessionsRepository,
   ) {}
 
@@ -111,8 +113,12 @@ export class TableSessionsService {
   }
 
   @Transactional()
-  private openSession(tableId: number): Promise<TableSessionWithTable> {
-    return this.tableSessionsRepository.create(tableId);
+  private async openSession(tableId: number): Promise<TableSessionWithTable> {
+    const opened = await this.tableSessionsRepository.create(tableId);
+
+    await this.events.sessionOpened(opened);
+
+    return opened;
   }
 
   @Transactional()
@@ -128,7 +134,9 @@ export class TableSessionsService {
     }
 
     if (session.tableId !== tableId) {
-      await this.tableSessionsRepository.move(id, tableId);
+      const moved = await this.tableSessionsRepository.move(id, tableId);
+
+      await this.events.sessionMoved(moved, session.tableId);
     }
   }
 
@@ -152,6 +160,8 @@ export class TableSessionsService {
       );
     }
 
-    await this.tableSessionsRepository.close(id);
+    const closed = await this.tableSessionsRepository.close(id);
+
+    await this.events.sessionClosed(closed);
   }
 }
