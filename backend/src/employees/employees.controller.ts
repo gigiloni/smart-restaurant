@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
@@ -12,7 +21,7 @@ import {
   type UpdateEmployeeDto,
 } from '@smart-restaurant/contracts';
 
-import { AccessService } from '../auth/access.service.js';
+import { RequireLogin } from '../auth/access-metadata.js';
 import { CurrentEmployee } from '../auth/current-employee.decorator.js';
 import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import {
@@ -26,10 +35,7 @@ import { EmployeesService } from './employees.service.js';
 @ApiTags('Employees')
 @Controller('employees')
 export class EmployeesController {
-  constructor(
-    private readonly employeesService: EmployeesService,
-    private readonly access: AccessService,
-  ) {}
+  constructor(private readonly employeesService: EmployeesService) {}
 
   @Get()
   @ApiOperation({
@@ -42,15 +48,23 @@ export class EmployeesController {
     standardSchema: employeeSchema,
     isArray: true,
   })
-  findAll(@CurrentEmployee() actor: AuthenticatedEmployee) {
-    this.access.requireAdmin(actor);
+  findAll() {
     return this.employeesService.findAll();
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Get the signed-in employee profile' })
+  // The one route that keeps a login: without one there is no "me".
+  @RequireLogin()
+  @ApiOperation({
+    summary: 'Get the signed-in employee profile',
+    description: 'Requires a staff login: without one there is nobody to return (401).',
+  })
   @ApiOkResponse({ description: 'The current employee.', standardSchema: employeeSchema })
-  me(@CurrentEmployee() actor: AuthenticatedEmployee) {
+  me(@CurrentEmployee() actor: AuthenticatedEmployee | undefined) {
+    if (!actor) {
+      throw new UnauthorizedException('Login required');
+    }
+
     return this.employeesService.findOne(actor.id);
   }
 
@@ -60,11 +74,7 @@ export class EmployeesController {
   @ApiOkResponse({ description: 'The requested employee.', standardSchema: employeeSchema })
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No employee with that id exists.')
-  findOne(
-    @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireEmployee(actor, id);
+  findOne(@Param('id', { schema: idParamSchema }) id: number) {
     return this.employeesService.findOne(id);
   }
 
@@ -76,11 +86,7 @@ export class EmployeesController {
   })
   @ApiCreatedResponse({ description: 'The created employee.', standardSchema: employeeSchema })
   @ApiValidationErrorResponse('The payload failed validation.')
-  create(
-    @Body({ schema: createEmployeeSchema }) dto: CreateEmployeeDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireAdmin(actor);
+  create(@Body({ schema: createEmployeeSchema }) dto: CreateEmployeeDto) {
     return this.employeesService.create(dto);
   }
 
@@ -91,9 +97,7 @@ export class EmployeesController {
   provisionAccount(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: employeeAccountSchema }) dto: EmployeeAccountDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    this.access.requireAdmin(actor);
     return this.employeesService.provisionAccount(id, dto);
   }
 
@@ -111,9 +115,7 @@ export class EmployeesController {
   update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateEmployeeSchema }) dto: UpdateEmployeeDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    this.access.requireEmployeeUpdate(actor, id, dto.role);
     return this.employeesService.update(id, dto);
   }
 
@@ -132,11 +134,7 @@ export class EmployeesController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No employee with that id exists.')
   @ApiEntityConflictResponse('The employee has taken at least one order.')
-  remove(
-    @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireAdmin(actor);
+  remove(@Param('id', { schema: idParamSchema }) id: number) {
     return this.employeesService.remove(id);
   }
 }

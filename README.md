@@ -481,6 +481,18 @@ At most 100 ids are accepted. Unknown ids are left out of the result.
 
 ### Login and access rules
 
+> **Access control is switched off for now: every route is public.** The
+> frontend has no login pages yet, so the global guard no longer rejects
+> anonymous requests and the controllers no longer call the role checks. The
+> implementation is kept: login still works, a signed-in caller or seated guest
+> is still recognised, and `AccessService` holds the role rules below. Only
+> `GET /api/employees/me` still requires a login, since without one there is no
+> "me". To put a route behind login again, add `@RequireLogin()` (staff) or
+> `@RequireLogin({ guests: true })` (staff or seated guest) to it and restore
+> its role check, e.g. `this.access.requireAdmin(actor)`. The rules below, and
+> the roles in the lifecycle tables, describe how access is meant to work once
+> it is switched back on.
+
 Sign in with `POST /api/auth/sign-in/email` using `{ "email": "...", "password": "..." }`. Better Auth returns an HTTP-only session cookie. Send that cookie with subsequent API requests. `GET /api/auth/get-session`, `POST /api/auth/change-password`, and `POST /api/auth/sign-out` are also available. Public sign-up is disabled. All business routes require a login; an unauthenticated request gets `401`, while a logged-in user without permission gets `403`.
 
 | Role | Access |

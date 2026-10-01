@@ -20,12 +20,7 @@ import {
   type UpdateOrderDto,
 } from '@smart-restaurant/contracts';
 
-import { ForbiddenException } from '@nestjs/common';
-import { AllowGuests } from '../auth/access-metadata.js';
-import { AccessService } from '../auth/access.service.js';
-import { CurrentEmployee } from '../auth/current-employee.decorator.js';
 import { CurrentViewer } from '../auth/current-viewer.decorator.js';
-import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import type { Viewer } from '../auth/viewer.types.js';
 
 import {
@@ -39,10 +34,7 @@ import { OrdersService } from './orders.service.js';
 @ApiTags('Orders')
 @Controller('orders')
 export class OrdersController {
-  constructor(
-    private readonly ordersService: OrdersService,
-    private readonly access: AccessService,
-  ) {}
+  constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
   @ApiOperation({
@@ -82,13 +74,12 @@ export class OrdersController {
   }
 
   @Post()
-  @AllowGuests()
   @ApiOperation({
     summary: 'Open an order',
     description:
       'Opens an order at a table, optionally with its first items.\n\n' +
-      '**Staff** (SERVICE, ADMIN): the order joins the party already seated there. If the table is free, a table session is opened for a new party first, exactly as a QR scan would. SERVICE staff are assigned the order themselves; only ADMIN may assign someone else or leave it unassigned.\n\n' +
-      "**Guests** order for their own party only. `tableId` must be the party's current table (409 if they have moved or the table was cleared), `items` must hold at least one item, and `employeeId` must be absent or null: the order is created unassigned, and any SERVICE employee may take payment for it or claim it with `PATCH /orders/{id}`. A guest order never seats anyone.\n\n" +
+      'The order joins the party already seated at `tableId`. If the table is free, a table session is opened for a new party first. Without `employeeId` the order is unassigned.\n\n' +
+      "A guest seated through a table's QR code (`sr_guest` cookie) orders for their own party only: `tableId` must be the party's current table (409 if they have moved or the table was cleared), `items` must hold at least one item, and `employeeId` must be absent or null.\n\n" +
       '**Side effects:** each entry in `items` writes one `Order_Item` row in the same transaction as the order, so an unknown product id fails the whole request and no order is created. Repeat a `productId` to order more than one of it. Every item starts at `OPEN` and is moved on through `/orders/{orderId}/items/{id}`.\n\n' +
       'An order may also be opened empty and filled later through `/orders/{orderId}/items`.',
   })
@@ -99,29 +90,19 @@ export class OrdersController {
   @ApiValidationErrorResponse(
     'The payload failed validation, a referenced table, employee or product does not exist, or a guest sent no items.',
   )
-  @ApiForbiddenResponse({
-    description:
-      'KITCHEN or BAR staff; SERVICE staff assigning someone else; a guest naming an employee.',
-  })
+  @ApiForbiddenResponse({ description: 'A guest seated through a QR code named an employee.' })
   @ApiEntityConflictResponse(
-    'Staff: the table was cleared twice while the order was being placed. A single clear is absorbed: the party has left, so the order seats the next party instead. Guests: the party is at another table, or has been cleared.',
+    'The table was cleared twice while the order was being placed (a single clear is absorbed: the order seats the next party). For a guest seated through a QR code: their party is at another table, or has been cleared.',
   )
   create(
     @Body({ schema: createOrderSchema }) dto: CreateOrderDto,
-    @CurrentViewer() viewer: Viewer,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
+    @CurrentViewer() viewer: Viewer | undefined,
   ) {
-    if (viewer.kind === 'guest') {
+    // A guest seated through a table's QR code orders for their own party.
+    if (viewer?.kind === 'guest') {
       return this.ordersService.createForGuest(viewer, dto);
     }
 
-    this.access.requireService(actor);
-    if (actor.role !== 'ADMIN') {
-      if (dto.employeeId !== undefined && dto.employeeId !== actor.id) {
-        throw new ForbiddenException('Service staff can only assign orders to themselves');
-      }
-      return this.ordersService.create({ ...dto, employeeId: actor.id });
-    }
     return this.ordersService.create(dto);
   }
 
@@ -129,8 +110,7 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Reassign an order',
     description:
-      'Assigns an open order to another employee, or unassigns it with `null`. Only ADMIN may do that.\n\n' +
-      '**Claiming:** a SERVICE employee may assign an unassigned order — such as one a guest placed — to themselves by sending their own `employeeId`. If another employee claimed it first, the request fails with 403: it is theirs now.\n\n' +
+      'Assigns an open order to an employee, or unassigns it with `null`.\n\n' +
       'An order no longer changes table on its own: orders belong to the party at the table, and a party that moves takes every order with it through `PATCH /table-sessions/{id}`. Items are managed through `/orders/{orderId}/items`.',
   })
   @ApiIdParam('id', 'Id of the order to update.')
@@ -143,16 +123,8 @@ export class OrdersController {
   async update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateOrderSchema }) dto: UpdateOrderDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    this.access.requireService(actor);
-    // SERVICE may only claim an order for themselves. Claiming an unassigned
-    // order — typically a guest's — passes the ownership check under the
-    // order's lock; one another employee took first fails it with 403.
-    if (actor.role !== 'ADMIN' && dto.employeeId !== undefined && dto.employeeId !== actor.id) {
-      throw new ForbiddenException('Only admins can reassign orders');
-    }
-    return this.ordersService.update(id, dto, { actor });
+    return this.ordersService.update(id, dto);
   }
 
   @Post(':id/close')
@@ -170,13 +142,8 @@ export class OrdersController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No order with that id exists.')
   @ApiEntityConflictResponse('At least one item on the order has not been served yet.')
-  async close(
-    @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireService(actor);
-
-    return this.ordersService.close(id, { actor });
+  async close(@Param('id', { schema: idParamSchema }) id: number) {
+    return this.ordersService.close(id);
   }
 
   @Delete(':id')
@@ -195,11 +162,7 @@ export class OrdersController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No order with that id exists.')
   @ApiEntityConflictResponse('The order is closed: it has been paid and is frozen.')
-  async remove(
-    @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireService(actor);
-    return this.ordersService.remove(id, { actor });
+  async remove(@Param('id', { schema: idParamSchema }) id: number) {
+    return this.ordersService.remove(id);
   }
 }

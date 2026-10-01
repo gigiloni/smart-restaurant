@@ -10,12 +10,8 @@ import {
   type UpdateOrderItemDto,
 } from '@smart-restaurant/contracts';
 
-import { AllowGuests } from '../auth/access-metadata.js';
-import { AccessService } from '../auth/access.service.js';
-import { CurrentEmployee } from '../auth/current-employee.decorator.js';
 import { CurrentViewer } from '../auth/current-viewer.decorator.js';
 import type { Viewer } from '../auth/viewer.types.js';
-import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 
 import {
   ApiEntityConflictResponse,
@@ -32,10 +28,7 @@ import { OrderItemsService } from './order-items.service.js';
 @ApiTags('Order items')
 @Controller('orders/:orderId/items')
 export class OrderItemsController {
-  constructor(
-    private readonly orderItemsService: OrderItemsService,
-    private readonly access: AccessService,
-  ) {}
+  constructor(private readonly orderItemsService: OrderItemsService) {}
 
   @Get()
   @ApiOperation({
@@ -80,9 +73,8 @@ export class OrderItemsController {
       'Adds one unit of a product to the order.\n\n' +
       '**Side effects:** writes one `Order_Item` row, which then appears in `orderItems` on the parent order. Quantity is expressed by repeating the call — post the same `productId` twice to order two of it, since each row carries its own kitchen status.\n\n' +
       'The item always starts at `OPEN`; the initial status is not part of the payload, so an item cannot be created into a state the transition rules would not have let it reach. Move it on with `PATCH`.\n\n' +
-      "**Who:** the order's employee, any SERVICE employee while the order is unassigned, ADMIN, and guests for any open order of their own party. To a guest, another party's order does not exist (404).",
+      "A guest seated through a table's QR code may add only to open orders of their own party; to them, another party's order does not exist (404).",
   })
-  @AllowGuests()
   @ApiIdParam('orderId', 'Id of the order to add the item to.')
   @ApiCreatedResponse({
     description: 'The created order item, with its product resolved.',
@@ -98,17 +90,16 @@ export class OrderItemsController {
   async create(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Body({ schema: createOrderItemSchema }) dto: CreateOrderItemDto,
-    @CurrentViewer() viewer: Viewer,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
+    @CurrentViewer() viewer: Viewer | undefined,
   ) {
-    if (viewer.kind === 'guest') {
+    // A guest seated through a table's QR code may only add to their own party's orders.
+    if (viewer?.kind === 'guest') {
       return this.orderItemsService.create(orderId, dto, {
         tableSessionId: viewer.tableSessionId,
       });
     }
 
-    this.access.requireService(actor);
-    return this.orderItemsService.create(orderId, dto, { actor });
+    return this.orderItemsService.create(orderId, dto);
   }
 
   @Patch(':id')
@@ -161,9 +152,8 @@ export class OrderItemsController {
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateOrderItemSchema }) dto: UpdateOrderItemDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    return this.orderItemsService.update(orderId, id, dto, actor);
+    return this.orderItemsService.update(orderId, id, dto);
   }
 
   @Delete(':id')
@@ -185,9 +175,7 @@ export class OrderItemsController {
   async remove(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    this.access.requireService(actor);
-    return this.orderItemsService.remove(orderId, id, { actor });
+    return this.orderItemsService.remove(orderId, id);
   }
 }

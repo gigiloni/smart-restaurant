@@ -3,6 +3,6 @@ import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 import type { AuthenticatedEmployee, AuthenticatedRequest } from './auth.types.js';
 
 export const CurrentEmployee = createParamDecorator(
-  (_data: unknown, context: ExecutionContext): AuthenticatedEmployee =>
+  (_data: unknown, context: ExecutionContext): AuthenticatedEmployee | undefined =>
     context.switchToHttp().getRequest<AuthenticatedRequest>().employee,
 );

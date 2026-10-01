@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 
-import { ALLOW_ANONYMOUS, ALLOW_GUESTS } from './access-metadata.js';
+import { REQUIRE_LOGIN, type LoginRequirement } from './access-metadata.js';
 import type { AuthenticatedRequest } from './auth.types.js';
 import { ViewerResolver } from './viewer-resolver.service.js';
 
@@ -34,28 +34,34 @@ export class AuthGuard implements CanActivate {
       }
     }
 
-    const targets = [context.getHandler(), context.getClass()];
-    const allowAnonymous = this.reflector.getAllAndOverride<boolean>(ALLOW_ANONYMOUS, targets);
-    const allowGuests = this.reflector.getAllAndOverride<boolean>(ALLOW_GUESTS, targets);
-
-    const resolved = await this.viewers.resolve(request.headers, {
-      allowGuests: Boolean(allowGuests || allowAnonymous),
-    });
+    // Who is asking, if anyone: a staff login or a guest cookie. Handlers read
+    // it with @CurrentEmployee() / @CurrentViewer(); both are undefined for an
+    // anonymous caller.
+    const resolved = await this.viewers.resolve(request.headers, { allowGuests: true });
 
     if (resolved) {
       if (resolved.employee) {
         request.employee = resolved.employee;
       }
       request.viewer = resolved.viewer;
+    }
+
+    const requirement = this.reflector.getAllAndOverride<LoginRequirement | undefined>(
+      REQUIRE_LOGIN,
+      [context.getHandler(), context.getClass()],
+    );
+
+    // Public unless the route says otherwise (see RequireLogin).
+    if (!requirement) {
       return true;
     }
 
-    if (allowAnonymous) {
+    if (resolved && (resolved.viewer.kind === 'staff' || requirement.guests)) {
       return true;
     }
 
     throw new UnauthorizedException(
-      allowGuests ? 'Login or scan the QR code on your table' : 'Login required',
+      requirement.guests ? 'Login or scan the QR code on your table' : 'Login required',
     );
   }
 }

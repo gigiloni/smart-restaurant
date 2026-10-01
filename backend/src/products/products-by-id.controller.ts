@@ -8,7 +8,6 @@ import {
   type ProductsByIdDto,
 } from '@smart-restaurant/contracts';
 
-import { AllowGuests } from '../auth/access-metadata.js';
 import { ApiValidationErrorResponse } from '../swagger/api-docs.decorators.js';
 import { ProductsService } from './products.service.js';
 
@@ -23,7 +22,6 @@ export class ProductsByIdController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  @AllowGuests()
   @HttpCode(200)
   @ApiOperation({
     summary: 'Look up products by id',

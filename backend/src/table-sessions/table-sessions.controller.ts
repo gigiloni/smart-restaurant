@@ -11,9 +11,6 @@ import {
   type OpenTableSessionDto,
 } from '@smart-restaurant/contracts';
 
-import { AccessService } from '../auth/access.service.js';
-import type { AuthenticatedEmployee } from '../auth/auth.types.js';
-import { CurrentEmployee } from '../auth/current-employee.decorator.js';
 import {
   ApiEntityConflictResponse,
   ApiEntityNotFoundResponse,
@@ -30,10 +27,7 @@ interface StatusReply {
 @ApiTags('Table sessions')
 @Controller('table-sessions')
 export class TableSessionsController {
-  constructor(
-    private readonly tableSessionsService: TableSessionsService,
-    private readonly access: AccessService,
-  ) {}
+  constructor(private readonly tableSessionsService: TableSessionsService) {}
 
   @Get()
   @ApiOperation({
@@ -72,8 +66,7 @@ export class TableSessionsController {
     summary: 'Join or open a table session',
     description:
       'What a QR scan at a table does. If the table already has a seated party, their session is returned with 200; if the table is free, a new session is opened and returned with 201.\n\n' +
-      'Safe to repeat: every guest scanning the same code lands in the same session, and two guests scanning at the same moment on a free table still end up sharing one.\n\n' +
-      'Requires the SERVICE or ADMIN role.',
+      'Safe to repeat: every guest scanning the same code lands in the same session, and two guests scanning at the same moment on a free table still end up sharing one.',
   })
   @ApiOkResponse({
     description: 'The table already had a seated party; this is their session.',
@@ -87,10 +80,7 @@ export class TableSessionsController {
   async open(
     @Body({ schema: openTableSessionSchema }) dto: OpenTableSessionDto,
     @Res({ passthrough: true }) reply: StatusReply,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    this.access.requireService(actor);
-
     const { session, created } = await this.tableSessionsService.openOrJoin(dto.tableId);
 
     reply.status(created ? 201 : 200);
@@ -103,8 +93,7 @@ export class TableSessionsController {
     summary: 'Move a party to another table',
     description:
       'Moves a seated party to a free table.\n\n' +
-      "**Side effects:** every order in the session moves with it, open and closed, so each order's `tableId` changes to the new table. The old table becomes free.\n\n" +
-      'Requires the SERVICE or ADMIN role.',
+      "**Side effects:** every order in the session moves with it, open and closed, so each order's `tableId` changes to the new table. The old table becomes free.",
   })
   @ApiIdParam('id', 'Id of the table session to move.')
   @ApiOkResponse({
@@ -121,10 +110,7 @@ export class TableSessionsController {
   move(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: moveTableSessionSchema }) dto: MoveTableSessionDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    this.access.requireService(actor);
-
     return this.tableSessionsService.move(id, dto.tableId);
   }
 
@@ -134,8 +120,7 @@ export class TableSessionsController {
     summary: 'Clear the table',
     description:
       'Ends the session so the table is free for the next party. Every order in the session must already be closed — paid — first.\n\n' +
-      '**Side effects:** the table becomes free, and anything bound to this session, such as guest access from the QR code, ends with it. Clearing an already cleared table is accepted and changes nothing, so a retried request is safe.\n\n' +
-      'Requires the SERVICE or ADMIN role.',
+      '**Side effects:** the table becomes free, and anything bound to this session, such as guest access from the QR code, ends with it. Clearing an already cleared table is accepted and changes nothing, so a retried request is safe.',
   })
   @ApiIdParam('id', 'Id of the table session to close.')
   @ApiOkResponse({
@@ -145,12 +130,7 @@ export class TableSessionsController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No table session with that id exists.')
   @ApiEntityConflictResponse('At least one order in the session has not been paid yet.')
-  close(
-    @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireService(actor);
-
+  close(@Param('id', { schema: idParamSchema }) id: number) {
     return this.tableSessionsService.close(id);
   }
 }

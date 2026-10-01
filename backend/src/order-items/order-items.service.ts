@@ -15,8 +15,6 @@ import {
 } from '@smart-restaurant/contracts';
 
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
-import { AccessService } from '../auth/access.service.js';
-import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import { Transactional } from '@nestjs-cls/transactional';
 
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
@@ -31,7 +29,6 @@ export class OrderItemsService {
     private readonly events: OrderEventsWriter,
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
-    private readonly access: AccessService,
   ) {}
 
   async findAll(orderId: number): Promise<OrderItemWithDetails[]> {
@@ -55,7 +52,7 @@ export class OrderItemsService {
   async create(
     orderId: number,
     dto: CreateOrderItemDto,
-    by: OrderChange,
+    by: OrderChange = {},
   ): Promise<OrderItemWithDetails> {
     try {
       return await this.addToOpenOrder(orderId, dto, by);
@@ -78,7 +75,6 @@ export class OrderItemsService {
     orderId: number,
     id: number,
     dto: UpdateOrderItemDto,
-    actor: AuthenticatedEmployee,
   ): Promise<OrderItemWithDetails> {
     // Anyone whose role may make this move may make it, owner or not.
     await this.orderLock.forChange(orderId);
@@ -88,8 +84,6 @@ export class OrderItemsService {
     if (!orderItem) {
       throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
     }
-
-    this.access.requireStatusChange(actor, orderItem.product.type, dto.status);
 
     const kind = classifyOrderItemTransition(orderItem.status, dto.status, orderItem.product.type);
 
@@ -120,7 +114,7 @@ export class OrderItemsService {
   }
 
   @Transactional()
-  async remove(orderId: number, id: number, by: OrderChange): Promise<OrderItemWithDetails> {
+  async remove(orderId: number, id: number, by: OrderChange = {}): Promise<OrderItemWithDetails> {
     await this.orderLock.forChange(orderId, by);
 
     const orderItem = await this.orderItemsRepository.findByOrderAndId(orderId, id);
