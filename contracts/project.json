@@ -14,6 +14,15 @@
         "main": "contracts/src/index.ts",
         "tsConfig": "contracts/tsconfig.json"
       }
+    },
+
+    "test": {
+      "executor": "nx:run-commands",
+
+      "options": {
+        "cwd": "contracts",
+        "command": "pnpm exec vitest run"
+      }
     }
   }
 }

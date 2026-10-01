@@ -444,6 +444,40 @@ references that block a delete with `409`.
 
 ---
 
+## Tests
+
+The backend and the shared contracts are tested with [Vitest](https://vitest.dev/).
+The frontend sets up its own tests.
+
+| Command | Runs | Needs |
+| --- | --- | --- |
+| `pnpm test` | Everything below | PostgreSQL |
+| `pnpm nx test contracts` | Unit tests of the shared rules and schemas | nothing |
+| `pnpm nx run backend:test-unit` | Backend unit tests: services, auth, live updates, with their collaborators mocked | nothing |
+| `pnpm nx run backend:test-integration` | The whole API over HTTP against a real database, including the live stream and concurrent requests | PostgreSQL |
+| `pnpm nx run backend:typecheck` | Type-checks the test code, which Vitest itself does not | nothing |
+
+Integration tests use their own database, `smart_restaurant_test`, on the
+PostgreSQL server from `compose.yml`. They create it on the first run, apply the
+migrations, and empty it at the start of every test file, so never point them
+at data you want to keep. They do not read `backend/.env`. To use another
+server, set `TEST_DATABASE_URL`; the database name must end in `_test`.
+
+Where the tests live:
+
+- Unit tests sit next to the code they test, as `*.spec.ts`, in
+  `backend/src/` and `contracts/src/`.
+- Integration tests are `backend/test/*.int-spec.ts`. Their helpers are in
+  `backend/test/support/`: `createTestApp()` builds the application exactly as
+  `main.ts` does (both call `configureApp()`), and `Fixtures` creates test data
+  through the API.
+
+Test names start with an ID such as `I-ORD-08` (integration, orders, case 8) or
+`U-SV-ITM-03` (unit, service, order items), so a failing test is easy to find and
+to refer to.
+
+---
+
 ## API resources
 
 All routes are served under the `/api` prefix and validated against the Zod

@@ -39,6 +39,55 @@
         "buildTarget": "backend:build",
         "runBuildTargetDependencies": true
       }
+    },
+
+    "prisma-generate": {
+      "executor": "nx:run-commands",
+
+      "options": {
+        "cwd": "backend",
+        "command": "pnpm exec prisma generate"
+      }
+    },
+
+    "test": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["prisma-generate"],
+
+      "options": {
+        "cwd": "backend",
+        "command": "pnpm exec vitest run"
+      }
+    },
+
+    "test-unit": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["prisma-generate"],
+
+      "options": {
+        "cwd": "backend",
+        "command": "pnpm exec vitest run --project unit"
+      }
+    },
+
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["prisma-generate"],
+
+      "options": {
+        "cwd": "backend",
+        "command": "pnpm exec tsc -b tsconfig.spec.json"
+      }
+    },
+
+    "test-integration": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["prisma-generate"],
+
+      "options": {
+        "cwd": "backend",
+        "command": "pnpm exec vitest run --project integration"
+      }
     }
   }
 }

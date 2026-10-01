@@ -24,6 +24,7 @@ node_modules
 !.vscode/launch.json
 !.vscode/extensions.json
 *.tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 # misc
 /.sass-cache

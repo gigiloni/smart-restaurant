@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../out-tsc/backend-spec",
+    "emitDeclarationOnly": true
+  },
+
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.ts"
+  ],
+
+  "references": [
+    {
+      "path": "../contracts"
+    }
+  ]
+}

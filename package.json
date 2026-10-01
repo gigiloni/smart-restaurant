@@ -59,6 +59,7 @@
     "@angular/compiler-cli": "21.2.19",
     "@angular/language-service": "21.2.19",
     "@eslint/js": "^9.8.0",
+    "@nestjs/testing": "^12.1.2",
     "@nx/angular": "23.1.1",
     "@nx/eslint": "23.1.1",
     "@nx/eslint-plugin": "23.1.1",
@@ -66,6 +67,7 @@
     "@nx/web": "23.1.1",
     "@nx/workspace": "23.1.1",
     "@schematics/angular": "21.2.19",
+    "@swc/core": "^1.16.13",
     "@swc/helpers": "~0.5.18",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.23.1",
@@ -80,6 +82,8 @@
     "tslib": "^2.3.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.58.0",
+    "unplugin-swc": "^2.0.0",
+    "vitest": "^5.0.2",
     "zod-openapi": "^6.0.2"
   }
 }
