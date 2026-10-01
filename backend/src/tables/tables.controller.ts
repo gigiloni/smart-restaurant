@@ -11,9 +11,6 @@ import {
   type UpdateTableDto,
 } from '@smart-restaurant/contracts';
 
-import { AccessService } from '../auth/access.service.js';
-import { CurrentEmployee } from '../auth/current-employee.decorator.js';
-import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 import { GuestAccessService } from '../auth/guest-access.service.js';
 
 import {
@@ -29,7 +26,6 @@ import { TablesService } from './tables.service.js';
 export class TablesController {
   constructor(
     private readonly tablesService: TablesService,
-    private readonly access: AccessService,
     private readonly guestAccess: GuestAccessService,
   ) {}
 
@@ -67,19 +63,13 @@ export class TablesController {
     summary: "Get a table's QR code content",
     description:
       'Returns what to encode in the QR code printed on this table. The guest app sends `tableId` and `token` to `POST /viewer/guest` to join the party seated there.\n\n' +
-      'The token never changes, so a printed code keeps working. Anyone holding it can join whoever is seated at the table, which is why only staff can read it.\n\n' +
-      'Requires the SERVICE or ADMIN role.',
+      'The token never changes, so a printed code keeps working. Anyone holding it can join whoever is seated at the table, which is why only staff can read it.',
   })
   @ApiIdParam('id', 'Id of the table.')
   @ApiOkResponse({ description: 'The QR code content.', standardSchema: tableQrCodeSchema })
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No table with that id exists.')
-  async qrCode(
-    @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireService(actor);
-
+  async qrCode(@Param('id', { schema: idParamSchema }) id: number) {
     const table = await this.tablesService.findOne(id);
 
     return {
@@ -98,11 +88,7 @@ export class TablesController {
   @ApiCreatedResponse({ description: 'The created table.', standardSchema: tableSchema })
   @ApiValidationErrorResponse('The payload failed validation.')
   @ApiEntityConflictResponse('Another table already uses that table number.')
-  create(
-    @Body({ schema: createTableSchema }) dto: CreateTableDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireAdmin(actor);
+  create(@Body({ schema: createTableSchema }) dto: CreateTableDto) {
     return this.tablesService.create(dto);
   }
 
@@ -120,9 +106,7 @@ export class TablesController {
   update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateTableSchema }) dto: UpdateTableDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    this.access.requireAdmin(actor);
     return this.tablesService.update(id, dto);
   }
 
@@ -141,11 +125,7 @@ export class TablesController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No table with that id exists.')
   @ApiEntityConflictResponse('The table still has at least one order against it.')
-  remove(
-    @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireAdmin(actor);
+  remove(@Param('id', { schema: idParamSchema }) id: number) {
     return this.tablesService.remove(id);
   }
 }

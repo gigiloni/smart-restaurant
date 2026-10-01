@@ -17,7 +17,8 @@ export const REVALIDATE_MS = 60_000;
 const RETRY_MS = 2_000;
 
 export interface LiveStreamOptions {
-  viewer: Viewer;
+  /** Undefined for an anonymous caller, who sees everything. */
+  viewer: Viewer | undefined;
 
   /** The last event the client has applied. */
   since: number;
@@ -89,7 +90,7 @@ export function liveStream(options: LiveStreamOptions): Observable<MessageEvent>
 
       // The party has left: nothing more will happen at this session, and the
       // guest cookie has stopped working, so a reconnect would only get 401.
-      if (viewer.kind === 'guest' && scoped.type === 'session.closed') {
+      if (viewer?.kind === 'guest' && scoped.type === 'session.closed') {
         end();
       }
     };
@@ -152,18 +153,22 @@ export function liveStream(options: LiveStreamOptions): Observable<MessageEvent>
 
     const heartbeat = setInterval(() => subscriber.next({ comment: 'heartbeat' }), HEARTBEAT_MS);
 
-    const revalidation = setInterval(() => {
-      options
-        .revalidate()
-        .then((current) => {
-          if (!current) {
-            end();
-          } else if (!sameScope(current, viewer)) {
-            end('scope_changed');
-          }
-        })
-        .catch(() => undefined);
-    }, REVALIDATE_MS);
+    // Only a login or guest cookie can expire or change; an anonymous stream
+    // has nothing to re-check.
+    const revalidation = viewer
+      ? setInterval(() => {
+          options
+            .revalidate()
+            .then((current) => {
+              if (!current) {
+                end();
+              } else if (!sameScope(current, viewer)) {
+                end('scope_changed');
+              }
+            })
+            .catch(() => undefined);
+        }, REVALIDATE_MS)
+      : undefined;
 
     return () => {
       ended = true;
