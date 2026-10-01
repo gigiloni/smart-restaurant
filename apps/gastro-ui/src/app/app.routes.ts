@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 import { Startseite } from './pages/startseite/startseite';
 import {Trefferliste} from "./components/trefferliste/trefferliste";
+import {Warenkorb} from "./pages/warenkorb/warenkorb";
 
 export const appRoutes: Route[] = [
   {
@@ -14,13 +15,8 @@ export const appRoutes: Route[] = [
     component: Startseite,
   },
   {
-    path: 'menu',
-    title: 'Menü',
-    component: Trefferliste,
-  },
-  {
     path: 'warenkorb',
     title: 'Warenkorb',
-    component: Trefferliste,
+    component: Warenkorb,
   },
 ];
