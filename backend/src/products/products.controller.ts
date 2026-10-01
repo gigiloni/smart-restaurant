@@ -1,14 +1,22 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
   createProductSchema,
   idParamSchema,
+  MAX_PRODUCT_IDS,
+  productListQuerySchema,
   productSchema,
   updateProductSchema,
   type CreateProductDto,
+  type ProductListQuery,
   type UpdateProductDto,
 } from '@smart-restaurant/contracts';
+
+import { AllowGuests } from '../auth/access-metadata.js';
+import { AccessService } from '../auth/access.service.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 
 import {
   ApiEntityConflictResponse,
@@ -21,27 +29,38 @@ import { ProductsService } from './products.service.js';
 @ApiTags('Products')
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get()
+  @AllowGuests()
   @ApiOperation({
-    summary: 'List all products',
+    summary: 'List products',
     description:
-      'Returns every product on the menu, sorted by name, each with its recipe resolved. Takes no query parameters: the list is neither filtered nor paginated.',
+      'Returns every product on the menu, sorted by name, each with its recipe resolved. The list is not paginated.\n\n' +
+      'Pass `ids` to get only some products, for example the ones in a cart or on an order: `?ids=3,1,7`. The result is still sorted by name, not in the order asked for. Ids that match no product are left out rather than failing the request.\n\n' +
+      'Guests seated through a QR code can read this too: it is the menu.',
   })
   @ApiOkResponse({
-    description: 'All products, sorted by name.',
+    description: 'The products, sorted by name.',
     standardSchema: productSchema,
     isArray: true,
   })
-  findAll() {
-    return this.productsService.findAll();
+  @ApiValidationErrorResponse(
+    `\`ids\` is empty, holds something other than positive integers, or lists more than ${MAX_PRODUCT_IDS} ids.`,
+  )
+  findAll(@Query({ schema: productListQuerySchema }) query: ProductListQuery) {
+    return this.productsService.findAll(query.ids);
   }
 
   @Get(':id')
+  @AllowGuests()
   @ApiOperation({
     summary: 'Get one product',
-    description: 'Returns a single product with its recipe resolved.',
+    description:
+      'Returns a single product with its recipe resolved. Guests seated through a QR code can read this too.',
   })
   @ApiIdParam('id', 'Id of the product to return.')
   @ApiOkResponse({ description: 'The requested product.', standardSchema: productSchema })
@@ -65,7 +84,11 @@ export class ProductsController {
   @ApiValidationErrorResponse(
     'The payload failed validation, an ingredient appears more than once, or a referenced ingredient does not exist.',
   )
-  create(@Body({ schema: createProductSchema }) dto: CreateProductDto) {
+  create(
+    @Body({ schema: createProductSchema }) dto: CreateProductDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
     return this.productsService.create(dto);
   }
 
@@ -88,7 +111,9 @@ export class ProductsController {
   update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateProductSchema }) dto: UpdateProductDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
+    this.access.requireAdmin(actor);
     return this.productsService.update(id, dto);
   }
 
@@ -108,7 +133,11 @@ export class ProductsController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No product with that id exists.')
   @ApiEntityConflictResponse('The product is still referenced by at least one order item.')
-  remove(@Param('id', { schema: idParamSchema }) id: number) {
+  remove(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    this.access.requireAdmin(actor);
     return this.productsService.remove(id);
   }
 }

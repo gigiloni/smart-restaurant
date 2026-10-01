@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { employeeRoleSchema } from './employee-role.schema.js';
+import { employeeAccountSchema } from './employee-account.schema.js';
 
 export const employeeInputSchema = z.object({
   firstname: z.string().trim().min(1).max(100).meta({
@@ -18,11 +19,11 @@ export const employeeInputSchema = z.object({
   role: employeeRoleSchema,
 });
 
-export const createEmployeeSchema = employeeInputSchema.meta({
+export const createEmployeeSchema = employeeInputSchema.extend(employeeAccountSchema.shape).meta({
   id: 'CreateEmployee',
   title: 'Create employee',
   description:
-    'Payload for adding a member of staff. Names are not required to be unique: two people may share one.',
+    'Payload for adding a member of staff and their email/password login. Only admins may use this route.',
 });
 
 export type CreateEmployeeDto = z.infer<typeof createEmployeeSchema>;

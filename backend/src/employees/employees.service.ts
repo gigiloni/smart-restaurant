@@ -1,6 +1,10 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
-import type { CreateEmployeeDto, UpdateEmployeeDto } from '@smart-restaurant/contracts';
+import type {
+  CreateEmployeeDto,
+  EmployeeAccountDto,
+  UpdateEmployeeDto,
+} from '@smart-restaurant/contracts';
 
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { EmployeesRepository } from './employees.repository.js';
@@ -23,8 +27,29 @@ export class EmployeesService {
     return employee;
   }
 
-  create(dto: CreateEmployeeDto) {
-    return this.employeesRepository.create(dto);
+  async create(dto: CreateEmployeeDto) {
+    try {
+      return await this.employeesRepository.create(dto);
+    } catch (error) {
+      if (isPrismaError(error, PrismaErrorCode.UniqueConstraintViolation)) {
+        throw new ConflictException('Email is already in use');
+      }
+      throw error;
+    }
+  }
+
+  async provisionAccount(id: number, dto: EmployeeAccountDto) {
+    await this.findOne(id);
+    try {
+      const employee = await this.employeesRepository.provisionAccount(id, dto);
+      if (!employee) throw new ConflictException(`Employee ${id} already has a login`);
+      return employee;
+    } catch (error) {
+      if (isPrismaError(error, PrismaErrorCode.UniqueConstraintViolation)) {
+        throw new ConflictException('Email is already in use');
+      }
+      throw error;
+    }
   }
 
   async update(id: number, dto: UpdateEmployeeDto) {

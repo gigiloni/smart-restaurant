@@ -10,6 +10,13 @@ import {
   type UpdateOrderItemDto,
 } from '@smart-restaurant/contracts';
 
+import { AllowGuests } from '../auth/access-metadata.js';
+import { AccessService } from '../auth/access.service.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import { CurrentViewer } from '../auth/current-viewer.decorator.js';
+import type { Viewer } from '../auth/viewer.types.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+
 import {
   ApiEntityConflictResponse,
   ApiEntityNotFoundResponse,
@@ -25,7 +32,10 @@ import { OrderItemsService } from './order-items.service.js';
 @ApiTags('Order items')
 @Controller('orders/:orderId/items')
 export class OrderItemsController {
-  constructor(private readonly orderItemsService: OrderItemsService) {}
+  constructor(
+    private readonly orderItemsService: OrderItemsService,
+    private readonly access: AccessService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -69,8 +79,10 @@ export class OrderItemsController {
     description:
       'Adds one unit of a product to the order.\n\n' +
       '**Side effects:** writes one `Order_Item` row, which then appears in `orderItems` on the parent order. Quantity is expressed by repeating the call — post the same `productId` twice to order two of it, since each row carries its own kitchen status.\n\n' +
-      'The item always starts at `OPEN`; the initial status is not part of the payload, so an item cannot be created into a state the transition rules would not have let it reach. Move it on with `PATCH`.',
+      'The item always starts at `OPEN`; the initial status is not part of the payload, so an item cannot be created into a state the transition rules would not have let it reach. Move it on with `PATCH`.\n\n' +
+      "**Who:** the order's employee, any SERVICE employee while the order is unassigned, ADMIN, and guests for any open order of their own party. To a guest, another party's order does not exist (404).",
   })
+  @AllowGuests()
   @ApiIdParam('orderId', 'Id of the order to add the item to.')
   @ApiCreatedResponse({
     description: 'The created order item, with its product resolved.',
@@ -79,12 +91,24 @@ export class OrderItemsController {
   @ApiValidationErrorResponse(
     '`orderId` is not a positive integer, the payload is invalid, or the referenced product does not exist.',
   )
-  @ApiEntityNotFoundResponse('No order with that id exists.')
-  create(
+  @ApiEntityNotFoundResponse(
+    "No order with that id exists, or, for a guest, it is another party's.",
+  )
+  @ApiEntityConflictResponse('The order is closed: it has been paid and is frozen.')
+  async create(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Body({ schema: createOrderItemSchema }) dto: CreateOrderItemDto,
+    @CurrentViewer() viewer: Viewer,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    return this.orderItemsService.create(orderId, dto);
+    if (viewer.kind === 'guest') {
+      return this.orderItemsService.create(orderId, dto, {
+        tableSessionId: viewer.tableSessionId,
+      });
+    }
+
+    this.access.requireService(actor);
+    return this.orderItemsService.create(orderId, dto, { actor });
   }
 
   @Patch(':id')
@@ -120,7 +144,7 @@ export class OrderItemsController {
       '### Sending an item back\n\n' +
       'An item can only be rejected once it has been made, so `REMAKE` is reachable from `READY` (spotted at the pass) and `SERVED` (sent back by the guest), never from `OPEN` or `IN_PROGRESS` — an item still being prepared simply stays in preparation. A `REMAKE` resolves in one of two ways: to `IN_PROGRESS` when the kitchen starts the replacement, or to `SERVED` when the guest accepts the item after all.\n\n' +
       '### Concurrent changes\n\n' +
-      'The permitted move is decided from the status the item has when the request arrives, and the write only lands while it still has that status. If another request moves the item first — the pass and the floor both touching the same ticket — this request is rejected with 409 naming the status the item now has, rather than applying a move that no single transition allows. Re-read the item and retry.\n\n' +
+      'Changes to the items of one order are applied one at a time. A request is always judged against the status the item has once the previous change has finished, so two people touching the same ticket — the pass and the floor — cannot combine into a move that no single transition allows. The one that arrives second may then be rejected with 409, naming the status the item has by then.\n\n' +
       'The product an item refers to cannot be changed; delete the item and add a new one instead.',
   })
   @ApiIdParam('orderId', 'Id of the order the item belongs to.')
@@ -131,14 +155,15 @@ export class OrderItemsController {
   )
   @ApiEntityNotFoundResponse('The order does not exist, or the item does not belong to it.')
   @ApiEntityConflictResponse(
-    'Either the requested status may not follow the status the item is currently in — the message names the permitted targets, and says when a move was blocked only because the item is not a DRINK — or another request changed the item while this one was in flight, in which case the message names the status it now has. Both are safe to retry once the item has been re-read.',
+    'The requested status may not follow the status the item is currently in — the message names the permitted targets, and says when a move was blocked only because the item is not a DRINK — or the order is closed, because it has been paid and is frozen.',
   )
   update(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateOrderItemSchema }) dto: UpdateOrderItemDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    return this.orderItemsService.update(orderId, id, dto);
+    return this.orderItemsService.update(orderId, id, dto, actor);
   }
 
   @Delete(':id')
@@ -156,10 +181,13 @@ export class OrderItemsController {
   })
   @ApiValidationErrorResponse('`orderId` or `id` is not a positive integer.')
   @ApiEntityNotFoundResponse('The order does not exist, or the item does not belong to it.')
-  remove(
+  @ApiEntityConflictResponse('The order is closed: it has been paid and is frozen.')
+  async remove(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    return this.orderItemsService.remove(orderId, id);
+    this.access.requireService(actor);
+    return this.orderItemsService.remove(orderId, id, { actor });
   }
 }

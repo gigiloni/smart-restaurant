@@ -49,9 +49,14 @@ Example:
 
 ```env
 DATABASE_URL=postgresql://admin:admin@localhost:5432/smart_restaurant
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=<random secret with at least 32 characters>
+FRONTEND_URL=http://localhost:4200
 ```
 
-The Docker Compose configuration additionally uses the PostgreSQL and pgAdmin environment variables defined in this file.
+The Docker Compose configuration additionally uses the PostgreSQL and pgAdmin environment variables defined in this file. Generate a unique `BETTER_AUTH_SECRET` with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`; sessions cannot be verified without it. `FRONTEND_URL` is the frontend's origin. It is trusted for login and for state-changing requests, and CORS is enabled for it, with cookies. Leave it unset to disable CORS.
+
+The Angular dev server proxies `/api` to the backend (`apps/gastro-ui/proxy.conf.json`). There, the browser sees a single origin and CORS is not involved. CORS matters when the frontend is served from its own origin, for example `http://localhost:4200` calling `http://localhost:3000` directly, or `app.example.com` calling `api.example.com`. Such calls must send cookies (`fetch(url, { credentials: 'include' })`, `new EventSource(url, { withCredentials: true })`). The login and guest cookies are `SameSite=Lax`, so the frontend and the API must share a site: same host with different ports, or subdomains of the same domain. A frontend on an unrelated domain would need `SameSite=None; Secure` cookies, which are not configured.
 
 ## Start database
 
@@ -320,13 +325,14 @@ trattoria with staff, tables, a menu with recipes, and orders spread across the
 kitchen workflow. It covers every enum variant, so each `ProductType`,
 `EmployeeRole` and `OrderItemStatus` value appears in the data.
 
-The file contains data only — apply the migrations first, then load it. With the
-compose stack running, no local `psql` is needed:
+Apply migrations, then run the Prisma seed from the repository root:
 
 ```bash
-docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
-  psql -U admin -d smart_restaurant < backend/prisma/seed.sql
+pnpm db:migrate
+pnpm db:seed
 ```
+
+The equivalent command from `backend/` is `pnpm exec prisma db seed`. Prisma runs `prisma/seed.mjs`, which loads the SQL over `DATABASE_URL`; Docker is only needed when PostgreSQL is run through Compose.
 
 With `psql` installed locally, load it directly instead:
 
@@ -334,9 +340,20 @@ With `psql` installed locally, load it directly instead:
 psql "$DATABASE_URL" -f backend/prisma/seed.sql
 ```
 
-Re-running is safe. Every table is truncated first and the identity sequences are
-reset afterwards, so ids stay stable across reloads and the next row the API
-writes does not collide with a seeded id.
+Re-running resets the sample tables, login accounts, and sessions, then resets the identity sequences. Use this only for disposable development data.
+
+### Create the first admin login
+
+The sample employees have no preset passwords. After seeding, create a login for the existing admin (employee 1). In PowerShell:
+
+```powershell
+$env:BOOTSTRAP_ADMIN_EMAIL = 'admin@example.com'
+$env:BOOTSTRAP_ADMIN_PASSWORD = '<your password of at least 12 characters>'
+pnpm db:bootstrap-admin
+Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD
+```
+
+The command refuses to run when an active admin already exists. Without sample data, also set `BOOTSTRAP_ADMIN_FIRSTNAME` and `BOOTSTRAP_ADMIN_LASTNAME` to create the first employee. Admins can then create employees with email/password via `POST /api/employees`, or activate an existing sample employee via `POST /api/employees/{id}/account`.
 
 ### Read an existing database schema
 
@@ -392,11 +409,12 @@ Build the shared contracts:
 pnpm nx build contracts
 ```
 
-Optionally load the sample data (see [Load the sample data](#load-the-sample-data)):
+Optionally load the sample data and create the first admin login (set the bootstrap credentials as described above):
 
 ```bash
-docker compose -p smart-restaurant --env-file ./backend/.env exec -T postgres \
-  psql -U admin -d smart_restaurant < backend/prisma/seed.sql
+pnpm db:migrate
+pnpm db:seed
+pnpm db:bootstrap-admin
 ```
 
 Start the backend:
@@ -434,7 +452,7 @@ schemas in the `contracts` library.
 | Resource | Routes |
 | --- | --- |
 | Tables | `GET` `POST` `/tables` · `GET` `PATCH` `DELETE` `/tables/:id` |
-| Employees | `GET` `POST` `/employees` · `GET` `PATCH` `DELETE` `/employees/:id` |
+| Employees | `GET` `POST` `/employees` · `GET` `/employees/me` · `GET` `PATCH` `DELETE` `/employees/:id` · `POST` `/employees/:id/account` |
 | Products | `GET` `POST` `/products` · `GET` `PATCH` `DELETE` `/products/:id` |
 | Ingredients | `GET` `POST` `/ingredients` · `GET` `PATCH` `DELETE` `/ingredients/:id` |
 | Orders | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id` |
@@ -455,7 +473,47 @@ orders. `skip` counts rows rather than pages, so the second page of twenty is
 for one row more than you intend to show to find out whether another page
 exists.
 
-Every other collection is returned whole.
+Every other collection is returned whole. `GET /products` can instead be
+narrowed to the products a client needs, such as a cart's:
+`GET /products?ids=3,1,7`. `?ids=3&ids=1` works too. The same lookup is
+available with a JSON body: `POST /products-by-id` with `{ "ids": [3, 1, 7] }`.
+At most 100 ids are accepted. Unknown ids are left out of the result.
+
+### Login and access rules
+
+Sign in with `POST /api/auth/sign-in/email` using `{ "email": "...", "password": "..." }`. Better Auth returns an HTTP-only session cookie. Send that cookie with subsequent API requests. `GET /api/auth/get-session`, `POST /api/auth/change-password`, and `POST /api/auth/sign-out` are also available. Public sign-up is disabled. All business routes require a login; an unauthenticated request gets `401`, while a logged-in user without permission gets `403`.
+
+| Role | Access |
+| --- | --- |
+| `ADMIN` | Full access, including employee CRUD, login activation, and role assignment. The last active admin cannot be deleted or demoted. |
+| `SERVICE` | Read all orders; create and change assigned orders and their items, and unassigned ones such as guests' orders, which they may also claim; update own profile without changing the role; mark any product type `SERVED` or `REMAKE` when its status transition permits it. |
+| `KITCHEN` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `FOOD` and `APPETIZER` items; update own profile without changing the role. |
+| `BAR` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `DRINK` items; update own profile without changing the role. |
+| Guest | No login; seated through the table's QR code (see below). Read the menu; place orders for their own party and add items to its open orders; follow their party live. Guest orders are unassigned: any `SERVICE` employee may serve, take payment for, or claim them. |
+
+All signed-in staff can read tables, products, and ingredients. Only admins can change those resources. Employees can read their own profile; only admins can list all employees. Roles are read from the database for every request, so changes take effect immediately. There is no separate superuser role; the first admin is bootstrapped once and can appoint other admins.
+
+#### Guests
+
+Guests have no login. Each table carries a QR code with its `tableId` and a
+`token`; staff with the `SERVICE` or `ADMIN` role read what to print from
+`GET /api/tables/:id/qr-code`. The guest app sends both to
+`POST /api/viewer/guest`, which needs no login. It joins the party seated at the
+table, or seats a new one if the table is free, and sets the HTTP-only
+`sr_guest` cookie.
+
+That cookie is bound to the party's table session, not the table. It follows the
+party when service moves them, and stops working the moment service clears the
+table, so the next party at the table is out of reach. Guests can reach only
+routes marked for them: the menu (`GET /api/products`, `GET /api/products/:id`,
+`POST /api/products-by-id`), ordering (`POST /api/orders`,
+`POST /api/orders/:orderId/items`, own party only), the live updates for their
+table (`GET /api/live/snapshot`, `GET /api/live/events`), and `GET /api/viewer`,
+which returns who the caller is, staff or guest. Every other route answers a
+guest with `401`.
+
+The token and the cookie are HMACs under a key derived from
+`BETTER_AUTH_SECRET`. Changing that secret invalidates every printed QR code.
 
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:
@@ -468,6 +526,179 @@ neither can exist without its parent:
   nested below `/orders/:orderId`, and an item that belongs to a different order
   returns `404` rather than being readable through the wrong parent. Items can
   also be created inline via the optional `items` array on `POST /orders`.
+
+### Seating and order lifecycles
+
+Orders belong to a **table session**: one party's time at a table, from the first QR scan until
+service clears the table. A table is free exactly when no open session names it.
+
+#### Seating
+
+```text
+                  QR scan, staff seats, or first order                service clears the table
+   FREE  ─────────────────────────────────────────────►  SEATED  ─────────────────────────────►  FREE
+   (no open session)           session.opened              │  ▲    only once every order is CLOSED
+                                                           │  │              session.closed
+                                                           └──┘
+                                           party moves to a free table: session.moved
+```
+
+| Step | Who | Request | Live event | What the frontend does |
+| --- | --- | --- | --- | --- |
+| Guest scans the QR code | guest | `POST /viewer/guest` with `tableId`, `token`. 201: new party; 200: joined the party already there | `session.opened` on 201 | The `sr_guest` cookie is set; nothing to store. Load the snapshot, open the stream, show the menu (`GET /products`), and let the guest order with `POST /orders`. |
+| Staff seats a party | `SERVICE`, `ADMIN` | `POST /table-sessions` with `tableId`. 201 / 200 as above | `session.opened` on 201 | Show the table as occupied. |
+| First order at a free table | `SERVICE`, `ADMIN` | `POST /orders` | `session.opened`, then `order.created` | Same as seating, then add the order. |
+| Party moves | `SERVICE`, `ADMIN` | `PATCH /table-sessions/{id}` with the free target `tableId`. 409 if it is taken | `session.moved` | Update the session **and every order in it** to the new table. Guests stay connected. |
+| Clear the table | `SERVICE`, `ADMIN` | `POST /table-sessions/{id}/close`. 409 while any order is unpaid | `session.closed` | Staff: drop the session and its orders; the table is free. Guest: the stream ends and the cookie stops working: show a goodbye screen. |
+
+Seating, paying and clearing are idempotent, so a retried request is safe. Scans that arrive at the
+same moment on a free table still land in one session.
+
+#### Order
+
+```text
+   POST /orders ──►  OPEN  ──── every item SERVED, then POST /orders/{id}/close ────►  CLOSED
+                      │                        order.closed                          paid, frozen
+                      └──── DELETE /orders/{id} ────► deleted  (order.deleted)
+```
+
+| Step | Who | Request | Live event |
+| --- | --- | --- | --- |
+| Place an order | `SERVICE` (assigned to themselves), `ADMIN`, guests (their own party, unassigned, at least one item) | `POST /orders` with `tableId` and optional `items` | `order.created` |
+| Add an item | the order's employee, `ADMIN`, guests (open orders of their own party) | `POST /orders/{id}/items` | `item.created` |
+| Prepare an item | `KITCHEN` for `APPETIZER`/`FOOD`, `BAR` for `DRINK`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `IN_PROGRESS`, `READY` | `item.status_changed` |
+| Serve or send back an item | `SERVICE`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE` | `item.status_changed` |
+| Remove an item | the order's employee, `ADMIN` | `DELETE /orders/{id}/items/{itemId}` | `item.deleted` |
+| Claim an unassigned order | `SERVICE` | `PATCH /orders/{id}` with their own `employeeId`. 403 if another employee claimed it first | `order.updated` |
+| Reassign the order | `ADMIN` | `PATCH /orders/{id}` with `employeeId` | `order.updated` |
+| Take payment | the order's employee, `ADMIN` | `POST /orders/{id}/close`. 409 while any item is not `SERVED` | `order.closed` |
+| Cancel the order | the order's employee, `ADMIN` | `DELETE /orders/{id}` | `order.deleted` |
+
+"The order's employee" includes any `SERVICE` employee while the order is unassigned, as every guest
+order is. Guests cannot change item status, remove items, pay or cancel; they ask the staff.
+
+Payment is per order: a party may pay order by order, and the table can be cleared once every order is
+`CLOSED`. A closed order is frozen: every change to it or its items returns 409. Items move through
+`OPEN → IN_PROGRESS → READY → SERVED`; see **Order item status** for the permitted moves.
+
+A table has at most one open session. That is enforced by a partial unique index
+created in the migration, since Prisma cannot express it, and an order's
+`tableId` is kept equal to its session's table by a composite foreign key.
+
+#### Transactions and row locks (backend)
+
+Writes that check something and then act on it, such as "is the order still
+open?" before adding an item, run in a transaction and hold a row lock on the
+order or session. The lock stops a concurrent request, such as payment, from
+getting in between.
+
+- **Transactions** come from [`@nestjs-cls/transactional`](https://papooch.github.io/nestjs-cls/plugins/available-plugins/transactional).
+  Mark a service method `@Transactional()`, and every repository call it makes
+  joins the transaction. Repositories read the current client from
+  `TransactionHost.tx`, so no client is passed around.
+- **Locks** come from `RowLocks` (`rowLocks.order(id)`,
+  `rowLocks.tableSession(id)`), which runs `SELECT ... FOR UPDATE`. Prisma has
+  no API for that. A lock taken outside a transaction throws
+  (`Propagation.Mandatory`): it would protect nothing. Take locks session
+  before order.
+- **Changing an order** goes through `OrderLock.forChange(id, { actor })`. It
+  locks the order and then checks, under the lock, that it exists (404), belongs
+  to the actor (403) and is still open (409). Nothing can reassign, pay or
+  delete the order between those checks and the write.
+- **Map Prisma errors outside the transactional method.** A failed statement
+  aborts the transaction, so nothing else can run in it. Methods that open
+  several transactions of their own (`openOrJoin`, order creation) use
+  `Propagation.Never` and throw if called inside one.
+- **Order events** are written with `OrderEventsWriter` as the last write of the
+  transaction that makes the change. It throws outside a transaction, so an
+  event can never commit without its change.
+
+### Order events
+
+Every change to a table session, an order or an order item is also recorded as
+an **order event**, in the same transaction as the change itself. The event log
+(`Order_Event`) is what the live updates replay from, so a client that was
+disconnected can catch up on exactly what it missed. See
+[Live updates](#live-updates).
+
+| Event | Written when |
+| --- | --- |
+| `session.opened` / `session.moved` / `session.closed` | a party is seated, moves table, or leaves |
+| `order.created` / `order.updated` / `order.closed` / `order.deleted` | an order is placed, reassigned, paid or deleted |
+| `item.created` / `item.status_changed` / `item.deleted` | an item is added later, moves through the kitchen, or is removed |
+
+Order events carry their items; `order.deleted` accounts for the items deleted
+with it. Item events carry enough of their order — table number included — to be
+shown on their own. Requests that change nothing (re-sending a status, paying a
+paid order, re-scanning a QR code) and requests that fail write no event.
+
+Event ids come from a single-row counter rather than a sequence. Bumping it
+takes a row lock held until commit, so ids are handed out in commit order: once
+event *n* is visible, every event before it is too, and the last id a client has
+applied is a complete cursor. The event shapes live in `contracts`
+(`orderEventSchema`).
+
+### Live updates
+
+Clients stay current in two steps: load a snapshot, then stream every change
+after it over Server-Sent Events.
+
+```ts
+const snapshot = await fetch('/api/live/snapshot', { credentials: 'include' }).then((r) => r.json());
+render(snapshot.sessions, snapshot.orders);
+
+const events = new EventSource(`/api/live/events?since=${snapshot.cursor}`, { withCredentials: true });
+events.addEventListener('item.status_changed', (e) => apply(JSON.parse(e.data)));
+// ...one listener per event type, or a shared handler
+events.addEventListener('resync', () => {
+  events.close();
+  // reload the snapshot and reconnect with its cursor
+});
+```
+
+- **Consistent start.** The snapshot is read in one `REPEATABLE READ`
+  transaction together with the event counter, so it reflects exactly the
+  events up to `cursor`. Streaming from `cursor` neither repeats nor skips a
+  change.
+- **No lost updates.** Every message's SSE `id` is its event id. When the
+  connection drops, the browser reconnects with `Last-Event-ID`, and the stream
+  resumes right after the last message received. Event ids have no gaps, so the
+  server notices if anything it should send is missing. It then sends `resync`
+  instead of skipping ahead. Events are kept for 24 hours.
+- **Replace, don't merge.** Every event carries the whole entity after the
+  change, or before it for deletions. Applying one is a replace, and applying
+  one twice is harmless. On `session.moved`, update the table of every order in
+  that session.
+- **Control messages.** `ready` means the backlog has been sent and the client is
+  live. `resync` gives a reason and closes the stream; the client must close
+  its `EventSource` too, or the browser reconnects into the same `resync`. A
+  comment line every 15 seconds keeps idle connections open through proxies.
+
+Who sees what:
+
+| Viewer | Snapshot and events |
+| --- | --- |
+| `SERVICE`, `ADMIN` | Everything: every open session and all of its orders, paid ones included. |
+| `KITCHEN` | Open orders holding `APPETIZER` or `FOOD` items, with only those items. Item events for those types. Order and move events for orders that hold them. No `session.opened` or `session.closed`. |
+| `BAR` | The same for `DRINK` items. |
+
+Kitchen and bar clients should hide orders that have no items. An order stays
+in their state, empty, after its last item for their station is deleted.
+
+Open a single `EventSource` per browser tab and share it across views. Browsers
+allow about six HTTP/1.1 connections per origin, and every open stream holds
+one. For a guest, `session.closed` ends the stream for good, because the cookie
+stops working with it. Show a goodbye screen, not a reconnect spinner.
+| Guest | Their own table session only. `employeeId` and `employee` are always null. The stream ends after `session.closed`. |
+
+A long-lived stream re-checks its login or guest cookie every minute. It ends
+after sign-out and sends `resync` if the employee's role changed.
+
+Behind the stream is one shared reader per server. It holds a `LISTEN`
+connection, and on each commit-time `NOTIFY` it reads the new events from
+`Order_Event` once for every connected client. It also polls every 5 seconds in
+case a notification was missed, and it reconnects on its own if the connection
+drops.
 
 ### Order item status
 
@@ -516,8 +747,15 @@ referenced protect their referent:
 
 | Action | Result |
 | --- | --- |
-| Delete an order | its order items are cascaded away |
+| Delete an open order | its order items are cascaded away |
+| Delete or change a closed order | `409 Conflict`: it has been paid |
 | Delete a product | its recipe lines are cascaded away |
 | Delete a product that is on an order | `409 Conflict` |
 | Delete an ingredient used by a product | `409 Conflict` |
 | Delete an employee who has taken an order | `409 Conflict` |
+
+
+### Export Git History
+```bash
+git -c core.quotepath=false log --all --since="2026-08-17" --no-merges --reverse --date=short --pretty=format:"%ad | %an | %s" --name-status | Out-File -Encoding utf8 commits.txt
+```

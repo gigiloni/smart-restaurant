@@ -7,4 +7,9 @@ export const configuration = () => ({
   database: {
     url: process.env.DATABASE_URL,
   },
+  auth: {
+    url: process.env.BETTER_AUTH_URL,
+    secret: process.env.BETTER_AUTH_SECRET,
+    frontendUrl: process.env.FRONTEND_URL,
+  },
 });

@@ -23,6 +23,7 @@ node_modules
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+*.tsconfig.tsbuildinfo
 
 # misc
 /.sass-cache
@@ -49,3 +50,4 @@ backend/.env
 .angular
 _tmp_*
 .pnpm-lock.yaml.*.tmp
+commits.txt

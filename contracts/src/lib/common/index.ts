@@ -3,3 +3,4 @@ export * from './id.schema.js';
 export * from './pagination.schema.js';
 export * from './integer.schema.js';
 export * from './refinements.js';
+export * from './timestamp.schema.js';

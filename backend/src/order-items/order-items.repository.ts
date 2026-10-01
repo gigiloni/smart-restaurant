@@ -6,7 +6,9 @@ import type {
   UpdateOrderItemDto,
 } from '@smart-restaurant/contracts';
 
-import { PrismaService } from '../database/prisma.service.js';
+import { TransactionHost } from '@nestjs-cls/transactional';
+
+import type { PrismaAdapter } from '../database/transaction.js';
 import { Prisma } from '../generated/prisma/client.js';
 
 const orderItemDetailsInclude = {
@@ -19,10 +21,15 @@ export type OrderItemWithDetails = Prisma.OrderItemGetPayload<{
 
 @Injectable()
 export class OrderItemsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly txHost: TransactionHost<PrismaAdapter>) {}
+
+  /** The current transaction's client, or the plain client outside one. */
+  private get db() {
+    return this.txHost.tx;
+  }
 
   findAllByOrder(orderId: number): Promise<OrderItemWithDetails[]> {
-    return this.prisma.orderItem.findMany({
+    return this.db.orderItem.findMany({
       where: {
         orderId,
       },
@@ -40,7 +47,7 @@ export class OrderItemsRepository {
    * wrong order.
    */
   findByOrderAndId(orderId: number, id: number): Promise<OrderItemWithDetails | null> {
-    return this.prisma.orderItem.findFirst({
+    return this.db.orderItem.findFirst({
       where: {
         id,
         orderId,
@@ -51,7 +58,7 @@ export class OrderItemsRepository {
   }
 
   create(orderId: number, dto: CreateOrderItemDto): Promise<OrderItemWithDetails> {
-    return this.prisma.orderItem.create({
+    return this.db.orderItem.create({
       data: {
         ...dto,
         orderId,
@@ -64,43 +71,41 @@ export class OrderItemsRepository {
   /**
    * Writes the new status only while the item is still in `expectedStatus`.
    *
-   * The permitted-transition check runs against the status the service read, so
-   * an unguarded write would apply it even if another request moved the item in
-   * between — producing a change no single transition allows. Matching on the
-   * status makes the check and the write one atomic step, and a `null` return
-   * means the item moved underneath this request.
+   * Callers hold the parent order's row lock, which already stops another
+   * request moving the item between the permitted-transition check and this
+   * write. Matching on the status as well means a caller that forgot the lock
+   * gets a `null` back rather than silently applying a move no transition
+   * allows.
    */
   async updateWhenStatusIs(
     id: number,
     expectedStatus: OrderItemStatus,
     dto: UpdateOrderItemDto,
   ): Promise<OrderItemWithDetails | null> {
-    return this.prisma.$transaction(async (tx) => {
-      const { count } = await tx.orderItem.updateMany({
-        where: {
-          id,
-          status: expectedStatus,
-        },
+    const { count } = await this.db.orderItem.updateMany({
+      where: {
+        id,
+        status: expectedStatus,
+      },
 
-        data: dto,
-      });
+      data: dto,
+    });
 
-      if (count === 0) {
-        return null;
-      }
+    if (count === 0) {
+      return null;
+    }
 
-      return tx.orderItem.findUnique({
-        where: {
-          id,
-        },
+    return this.db.orderItem.findUnique({
+      where: {
+        id,
+      },
 
-        include: orderItemDetailsInclude,
-      });
+      include: orderItemDetailsInclude,
     });
   }
 
   remove(id: number): Promise<OrderItemWithDetails> {
-    return this.prisma.orderItem.delete({
+    return this.db.orderItem.delete({
       where: {
         id,
       },
