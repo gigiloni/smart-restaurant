@@ -78,7 +78,7 @@ export class OrdersController {
     summary: 'Open an order',
     description:
       'Opens an order at a table, optionally with its first items.\n\n' +
-      'The order joins the party already seated at `tableId`. If the table is free, a table session is opened for a new party first. Without `employeeId` the order is unassigned.\n\n' +
+      'The order joins the party already seated at `tableId`. If the table is free, a table session is opened for a new party first. Without `employeeId` the order is unassigned, unless a signed-in SERVICE employee places it: then it is theirs.\n\n' +
       "A guest seated through a table's QR code (`sr_guest` cookie) orders for their own party only: `tableId` must be the party's current table (409 if they have moved or the table was cleared), `items` must hold at least one item, and `employeeId` must be absent or null.\n\n" +
       '**Side effects:** each entry in `items` writes one `Order_Item` row in the same transaction as the order, so an unknown product id fails the whole request and no order is created. Repeat a `productId` to order more than one of it. Every item starts at `OPEN` and is moved on through `/orders/{orderId}/items/{id}`.\n\n' +
       'An order may also be opened empty and filled later through `/orders/{orderId}/items`.',
@@ -101,6 +101,11 @@ export class OrdersController {
     // A guest seated through a table's QR code orders for their own party.
     if (viewer?.kind === 'guest') {
       return this.ordersService.createForGuest(viewer, dto);
+    }
+
+    // A signed-in waiter who names nobody takes the order themselves.
+    if (viewer?.role === 'SERVICE' && dto.employeeId === undefined) {
+      return this.ordersService.create({ ...dto, employeeId: viewer.employeeId });
     }
 
     return this.ordersService.create(dto);
