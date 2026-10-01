@@ -13,7 +13,16 @@ import { Prisma } from '../generated/prisma/client.js';
 
 export const orderDetailsInclude = {
   table: true,
-  employee: true,
+
+  // The public fields only, as `/employees` returns them: not the login id.
+  employee: {
+    select: {
+      id: true,
+      firstname: true,
+      lastname: true,
+      role: true,
+    },
+  },
 
   orderItems: {
     include: {
