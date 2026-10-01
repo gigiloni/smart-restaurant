@@ -15,7 +15,7 @@ import { MessageService } from 'primeng/api';
   styleUrl: './vorspeisen.css',
 })
 export class Vorspeisen {
-  productsInSpeisekarte = signal<Product[]>([]);
+  signalVorspeisen = signal<Product[]>([]);
 
   private productService: ProductService = inject(ProductService);
   private destroyRef: DestroyRef = inject(DestroyRef);
@@ -27,7 +27,7 @@ export class Vorspeisen {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (products: Product[]) => {
-          this.productsInSpeisekarte.set(products);
+          this.signalVorspeisen.set(products.filter((product) => product.type === 'APPETIZER'));
         },
         error: (error) => {
           this.messageService.add({

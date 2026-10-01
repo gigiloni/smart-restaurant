@@ -12,7 +12,7 @@ import { MessageService } from 'primeng/api';
   styleUrl: './hauptgaenge.css',
 })
 export class Hauptgaenge {
-  productsInSpeisekarte = signal<Product[]>([]);
+  signalHauptgaenge = signal<Product[]>([]);
 
   private productService: ProductService = inject(ProductService);
   private destroyRef: DestroyRef = inject(DestroyRef);
@@ -24,7 +24,7 @@ export class Hauptgaenge {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (products: Product[]) => {
-          this.productsInSpeisekarte.set(products);
+          this.signalHauptgaenge.set(products.filter((product) => product.type === 'FOOD'));
         },
         error: (error) => {
           this.messageService.add({

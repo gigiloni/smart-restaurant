@@ -1,4 +1,4 @@
-<p-dataview [value]="productsInSpeisekarte()">
+<p-dataview [value]="signalVorspeisen()">
   <ng-template #list let-products>
     <div class="grid grid-cols-1 gap-6">
       @for (product of products; track product.id) {
