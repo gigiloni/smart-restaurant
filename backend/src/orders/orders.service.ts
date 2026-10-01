@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import type { CreateOrderDto, PaginationQuery, UpdateOrderDto } from '@smart-res
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { Propagation, Transactional } from '@nestjs-cls/transactional';
 
+import type { GuestViewer } from '../auth/viewer.types.js';
 import { RowLocks } from '../database/row-locks.js';
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { TableSessionsService } from '../table-sessions/table-sessions.service.js';
@@ -76,22 +78,70 @@ export class OrdersService {
     }
   }
 
-  /** The order, or null if the session was cleared before its lock was taken. */
+  /**
+   * Places a guest's order with their own party. Unlike `create`, it never
+   * seats anyone: a guest whose party has left or moved gets 409 rather than an
+   * order at a table they are not sitting at.
+   */
+  async createForGuest(guest: GuestViewer, dto: CreateOrderDto): Promise<OrderWithDetails> {
+    if (dto.employeeId !== undefined && dto.employeeId !== null) {
+      throw new ForbiddenException('Guests cannot assign an order to an employee');
+    }
+
+    if (!dto.items?.length) {
+      throw new BadRequestException('items: a guest order needs at least one item');
+    }
+
+    let order: OrderWithDetails | null;
+
+    try {
+      order = await this.placeInSession(
+        guest.tableSessionId,
+        { employeeId: null, items: dto.items },
+        dto.tableId,
+      );
+    } catch (error) {
+      throw this.mapUnknownReference(error);
+    }
+
+    if (!order) {
+      throw new ConflictException('Your table has been cleared; scan the QR code again');
+    }
+
+    return order;
+  }
+
+  /**
+   * Places an order in a session under the session's lock, so the session
+   * cannot be cleared or moved underneath it. Null if it has been cleared.
+   *
+   * With `expectedTableId` — a guest ordering from the table they believe they
+   * are at — a party that has moved since gets 409 instead of an order.
+   */
   @Transactional()
   private async placeInSession(
     tableSessionId: number,
     dto: Omit<CreateOrderDto, 'tableId'>,
+    expectedTableId?: number,
   ): Promise<OrderWithDetails | null> {
-    const locked = await this.locks.tableSession(tableSessionId);
+    const session = await this.locks.tableSession(tableSessionId);
 
-    if (!locked || locked.closedAt) {
+    if (!session || session.closedAt) {
       return null;
+    }
+
+    if (expectedTableId !== undefined && expectedTableId !== session.tableId) {
+      const tableNumber = await this.ordersRepository.tableNumberOf(session.tableId);
+
+      throw new ConflictException(
+        `Your party is seated at table ${tableNumber} (id ${session.tableId}), not table id ${expectedTableId}`,
+      );
     }
 
     const created = await this.ordersRepository.create({
       ...dto,
-      tableSessionId: locked.id,
-      tableId: locked.tableId,
+      tableSessionId: session.id,
+      tableId: session.tableId,
     });
 
     await this.events.orderCreated(created);

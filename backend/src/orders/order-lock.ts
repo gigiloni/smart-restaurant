@@ -13,13 +13,20 @@ export interface OrderChange {
    */
   actor?: AuthenticatedEmployee;
 
+  /**
+   * The guest's table session. To a guest, another party's order does not
+   * exist: answering 403 would confirm the id is on someone else's bill.
+   */
+  tableSessionId?: number;
+
   /** Let a closed order through: paying for it again is a no-op, not a conflict. */
   allowClosed?: boolean;
 }
 
 /**
  * Locks an order for a change and checks, under that lock, that the change may
- * happen: the order exists (404), belongs to the actor (403) and is still open
+ * happen: the order exists — for a guest, in their own party (404) — belongs
+ * to the actor (403) and is still open
  * (409). Checking after locking means none of it can change before the write:
  * the order cannot be paid, reassigned or deleted in between.
  */
@@ -33,7 +40,10 @@ export class OrderLock {
   async forChange(id: number, change: OrderChange = {}): Promise<LockedOrder> {
     const order = await this.locks.order(id);
 
-    if (!order) {
+    if (
+      !order ||
+      (change.tableSessionId !== undefined && order.tableSessionId !== change.tableSessionId)
+    ) {
       throw new NotFoundException(`Order ${id} not found`);
     }
 

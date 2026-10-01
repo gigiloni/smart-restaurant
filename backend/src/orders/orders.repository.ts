@@ -95,6 +95,20 @@ export class OrdersRepository {
     });
   }
 
+  async tableNumberOf(tableId: number): Promise<number> {
+    const table = await this.db.restaurantTable.findUniqueOrThrow({
+      where: {
+        id: tableId,
+      },
+
+      select: {
+        tableNumber: true,
+      },
+    });
+
+    return table.tableNumber;
+  }
+
   countUnservedItems(id: number): Promise<number> {
     return this.db.orderItem.count({
       where: {

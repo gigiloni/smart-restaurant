@@ -486,9 +486,10 @@ Sign in with `POST /api/auth/sign-in/email` using `{ "email": "...", "password":
 | Role | Access |
 | --- | --- |
 | `ADMIN` | Full access, including employee CRUD, login activation, and role assignment. The last active admin cannot be deleted or demoted. |
-| `SERVICE` | Read all orders; create and change assigned orders and their items; update own profile without changing the role; mark any product type `SERVED` or `REMAKE` when its status transition permits it. |
+| `SERVICE` | Read all orders; create and change assigned orders and their items, and unassigned ones such as guests' orders, which they may also claim; update own profile without changing the role; mark any product type `SERVED` or `REMAKE` when its status transition permits it. |
 | `KITCHEN` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `FOOD` and `APPETIZER` items; update own profile without changing the role. |
 | `BAR` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `DRINK` items; update own profile without changing the role. |
+| Guest | No login; seated through the table's QR code (see below). Read the menu; place orders for their own party and add items to its open orders; follow their party live. Guest orders are unassigned: any `SERVICE` employee may serve, take payment for, or claim them. |
 
 All signed-in staff can read tables, products, and ingredients. Only admins can change those resources. Employees can read their own profile; only admins can list all employees. Roles are read from the database for every request, so changes take effect immediately. There is no separate superuser role; the first admin is bootstrapped once and can appoint other admins.
 
@@ -505,10 +506,11 @@ That cookie is bound to the party's table session, not the table. It follows the
 party when service moves them, and stops working the moment service clears the
 table, so the next party at the table is out of reach. Guests can reach only
 routes marked for them: the menu (`GET /api/products`, `GET /api/products/:id`,
-`POST /api/products-by-id`), the live updates for their table
-(`GET /api/live/snapshot`, `GET /api/live/events`), and `GET /api/viewer`, which
-returns who the caller is, staff or guest. Every other route answers a guest
-with `401`.
+`POST /api/products-by-id`), ordering (`POST /api/orders`,
+`POST /api/orders/:orderId/items`, own party only), the live updates for their
+table (`GET /api/live/snapshot`, `GET /api/live/events`), and `GET /api/viewer`,
+which returns who the caller is, staff or guest. Every other route answers a
+guest with `401`.
 
 The token and the cookie are HMACs under a key derived from
 `BETTER_AUTH_SECRET`. Changing that secret invalidates every printed QR code.
@@ -543,7 +545,7 @@ service clears the table. A table is free exactly when no open session names it.
 
 | Step | Who | Request | Live event | What the frontend does |
 | --- | --- | --- | --- | --- |
-| Guest scans the QR code | guest | `POST /viewer/guest` with `tableId`, `token`. 201: new party; 200: joined the party already there | `session.opened` on 201 | The `sr_guest` cookie is set; nothing to store. Load the snapshot, open the stream, show the menu (`GET /products`). |
+| Guest scans the QR code | guest | `POST /viewer/guest` with `tableId`, `token`. 201: new party; 200: joined the party already there | `session.opened` on 201 | The `sr_guest` cookie is set; nothing to store. Load the snapshot, open the stream, show the menu (`GET /products`), and let the guest order with `POST /orders`. |
 | Staff seats a party | `SERVICE`, `ADMIN` | `POST /table-sessions` with `tableId`. 201 / 200 as above | `session.opened` on 201 | Show the table as occupied. |
 | First order at a free table | `SERVICE`, `ADMIN` | `POST /orders` | `session.opened`, then `order.created` | Same as seating, then add the order. |
 | Party moves | `SERVICE`, `ADMIN` | `PATCH /table-sessions/{id}` with the free target `tableId`. 409 if it is taken | `session.moved` | Update the session **and every order in it** to the new table. Guests stay connected. |
@@ -562,14 +564,18 @@ same moment on a free table still land in one session.
 
 | Step | Who | Request | Live event |
 | --- | --- | --- | --- |
-| Place an order | `SERVICE` (assigned to themselves), `ADMIN` | `POST /orders` with `tableId` and optional `items` | `order.created` |
-| Add an item | the order's employee, `ADMIN` | `POST /orders/{id}/items` | `item.created` |
+| Place an order | `SERVICE` (assigned to themselves), `ADMIN`, guests (their own party, unassigned, at least one item) | `POST /orders` with `tableId` and optional `items` | `order.created` |
+| Add an item | the order's employee, `ADMIN`, guests (open orders of their own party) | `POST /orders/{id}/items` | `item.created` |
 | Prepare an item | `KITCHEN` for `APPETIZER`/`FOOD`, `BAR` for `DRINK`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `IN_PROGRESS`, `READY` | `item.status_changed` |
 | Serve or send back an item | `SERVICE`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE` | `item.status_changed` |
 | Remove an item | the order's employee, `ADMIN` | `DELETE /orders/{id}/items/{itemId}` | `item.deleted` |
+| Claim an unassigned order | `SERVICE` | `PATCH /orders/{id}` with their own `employeeId`. 403 if another employee claimed it first | `order.updated` |
 | Reassign the order | `ADMIN` | `PATCH /orders/{id}` with `employeeId` | `order.updated` |
 | Take payment | the order's employee, `ADMIN` | `POST /orders/{id}/close`. 409 while any item is not `SERVED` | `order.closed` |
 | Cancel the order | the order's employee, `ADMIN` | `DELETE /orders/{id}` | `order.deleted` |
+
+"The order's employee" includes any `SERVICE` employee while the order is unassigned, as every guest
+order is. Guests cannot change item status, remove items, pay or cancel; they ask the staff.
 
 Payment is per order: a party may pay order by order, and the table can be cleared once every order is
 `CLOSED`. A closed order is frozen: every change to it or its items returns 409. Items move through
