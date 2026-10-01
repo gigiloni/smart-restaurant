@@ -2,6 +2,7 @@
 import {inject, Injectable, signal} from "@angular/core";
 import {Product} from "@smart-restaurant/contracts"
 import {MessageService} from "primeng/api";
+import { Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
@@ -11,6 +12,9 @@ export class ProductService {
   protected messageService = inject(MessageService);
 
   protected productsInWarenkorb = signal<Product[]>([]);
+
+  getProducts(): Observable<Product[]> {
+    return this.http.get<Product[]>('/api/products')};
 
   getProductsById(productIdList: number[]) {
     this.http.post<Product[]>('/products/getProductsById', productIdList).subscribe({
