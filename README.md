@@ -505,9 +505,10 @@ That cookie is bound to the party's table session, not the table. It follows the
 party when service moves them, and stops working the moment service clears the
 table, so the next party at the table is out of reach. Guests can reach only
 routes marked for them: the menu (`GET /api/products`, `GET /api/products/:id`,
-`POST /api/products-by-id`)
-and `GET /api/viewer`, which returns who the caller is, staff or guest. Every
-other route answers a guest with `401`.
+`POST /api/products-by-id`), the live updates for their table
+(`GET /api/live/snapshot`, `GET /api/live/events`), and `GET /api/viewer`, which
+returns who the caller is, staff or guest. Every other route answers a guest
+with `401`.
 
 The token and the cookie are HMACs under a key derived from
 `BETTER_AUTH_SECRET`. Changing that secret invalidates every printed QR code.
@@ -524,36 +525,55 @@ neither can exist without its parent:
   returns `404` rather than being readable through the wrong parent. Items can
   also be created inline via the optional `items` array on `POST /orders`.
 
-### Table sessions and payment
+### Seating and order lifecycles
 
-Orders belong to a **table session**: one party's time at a table, from the
-first QR scan until service clears the table.
+Orders belong to a **table session**: one party's time at a table, from the first QR scan until
+service clears the table. A table is free exactly when no open session names it.
+
+#### Seating
 
 ```text
-Table    FREE ──(first QR scan or order)──► OCCUPIED ──(service clears)──► FREE
-                opens a session                          only once every order is paid
-
-Order    OPEN ──(service takes payment)──► CLOSED
-               only once every item is SERVED   frozen from then on
+                  QR scan, staff seats, or first order                service clears the table
+   FREE  ─────────────────────────────────────────────►  SEATED  ─────────────────────────────►  FREE
+   (no open session)           session.opened              │  ▲    only once every order is CLOSED
+                                                           │  │              session.closed
+                                                           └──┘
+                                           party moves to a free table: session.moved
 ```
 
-| Action | Route | Who |
-| --- | --- | --- |
-| Join or open the session at a table | `POST /table-sessions` | `SERVICE`, `ADMIN` |
-| List seated parties | `GET /table-sessions` | all staff |
-| Move a party, with its orders, to a free table | `PATCH /table-sessions/:id` | `SERVICE`, `ADMIN` |
-| Take payment for one order | `POST /orders/:id/close` | the order's service employee, `ADMIN` |
-| Clear the table | `POST /table-sessions/:id/close` | `SERVICE`, `ADMIN` |
+| Step | Who | Request | Live event | What the frontend does |
+| --- | --- | --- | --- | --- |
+| Guest scans the QR code | guest | `POST /viewer/guest` with `tableId`, `token`. 201: new party; 200: joined the party already there | `session.opened` on 201 | The `sr_guest` cookie is set; nothing to store. Load the snapshot, open the stream, show the menu (`GET /products`). |
+| Staff seats a party | `SERVICE`, `ADMIN` | `POST /table-sessions` with `tableId`. 201 / 200 as above | `session.opened` on 201 | Show the table as occupied. |
+| First order at a free table | `SERVICE`, `ADMIN` | `POST /orders` | `session.opened`, then `order.created` | Same as seating, then add the order. |
+| Party moves | `SERVICE`, `ADMIN` | `PATCH /table-sessions/{id}` with the free target `tableId`. 409 if it is taken | `session.moved` | Update the session **and every order in it** to the new table. Guests stay connected. |
+| Clear the table | `SERVICE`, `ADMIN` | `POST /table-sessions/{id}/close`. 409 while any order is unpaid | `session.closed` | Staff: drop the session and its orders; the table is free. Guest: the stream ends and the cookie stops working: show a goodbye screen. |
 
-Joining is idempotent: every guest scanning the same code lands in the same
-session, and scans arriving at the same moment on a free table still share one.
-Placing an order at a free table opens a session for it. Taking payment and
-clearing the table are idempotent too, so retried requests are safe.
+Seating, paying and clearing are idempotent, so a retried request is safe. Scans that arrive at the
+same moment on a free table still land in one session.
 
-A closed order is frozen: its items can no longer be added, removed or moved
-through the kitchen workflow, and the order can no longer be reassigned or
-deleted. An order no longer changes table on its own — moving a party moves
-every order it has placed.
+#### Order
+
+```text
+   POST /orders ──►  OPEN  ──── every item SERVED, then POST /orders/{id}/close ────►  CLOSED
+                      │                        order.closed                          paid, frozen
+                      └──── DELETE /orders/{id} ────► deleted  (order.deleted)
+```
+
+| Step | Who | Request | Live event |
+| --- | --- | --- | --- |
+| Place an order | `SERVICE` (assigned to themselves), `ADMIN` | `POST /orders` with `tableId` and optional `items` | `order.created` |
+| Add an item | the order's employee, `ADMIN` | `POST /orders/{id}/items` | `item.created` |
+| Prepare an item | `KITCHEN` for `APPETIZER`/`FOOD`, `BAR` for `DRINK`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `IN_PROGRESS`, `READY` | `item.status_changed` |
+| Serve or send back an item | `SERVICE`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE` | `item.status_changed` |
+| Remove an item | the order's employee, `ADMIN` | `DELETE /orders/{id}/items/{itemId}` | `item.deleted` |
+| Reassign the order | `ADMIN` | `PATCH /orders/{id}` with `employeeId` | `order.updated` |
+| Take payment | the order's employee, `ADMIN` | `POST /orders/{id}/close`. 409 while any item is not `SERVED` | `order.closed` |
+| Cancel the order | the order's employee, `ADMIN` | `DELETE /orders/{id}` | `order.deleted` |
+
+Payment is per order: a party may pay order by order, and the table can be cleared once every order is
+`CLOSED`. A closed order is frozen: every change to it or its items returns 409. Items move through
+`OPEN → IN_PROGRESS → READY → SERVED`; see **Order item status** for the permitted moves.
 
 A table has at most one open session. That is enforced by a partial unique index
 created in the migration, since Prisma cannot express it, and an order's
@@ -592,7 +612,8 @@ getting in between.
 Every change to a table session, an order or an order item is also recorded as
 an **order event**, in the same transaction as the change itself. The event log
 (`Order_Event`) is what the live updates replay from, so a client that was
-disconnected can catch up on exactly what it missed.
+disconnected can catch up on exactly what it missed. See
+[Live updates](#live-updates).
 
 | Event | Written when |
 | --- | --- |
@@ -610,6 +631,68 @@ takes a row lock held until commit, so ids are handed out in commit order: once
 event *n* is visible, every event before it is too, and the last id a client has
 applied is a complete cursor. The event shapes live in `contracts`
 (`orderEventSchema`).
+
+### Live updates
+
+Clients stay current in two steps: load a snapshot, then stream every change
+after it over Server-Sent Events.
+
+```ts
+const snapshot = await fetch('/api/live/snapshot', { credentials: 'include' }).then((r) => r.json());
+render(snapshot.sessions, snapshot.orders);
+
+const events = new EventSource(`/api/live/events?since=${snapshot.cursor}`, { withCredentials: true });
+events.addEventListener('item.status_changed', (e) => apply(JSON.parse(e.data)));
+// ...one listener per event type, or a shared handler
+events.addEventListener('resync', () => {
+  events.close();
+  // reload the snapshot and reconnect with its cursor
+});
+```
+
+- **Consistent start.** The snapshot is read in one `REPEATABLE READ`
+  transaction together with the event counter, so it reflects exactly the
+  events up to `cursor`. Streaming from `cursor` neither repeats nor skips a
+  change.
+- **No lost updates.** Every message's SSE `id` is its event id. When the
+  connection drops, the browser reconnects with `Last-Event-ID`, and the stream
+  resumes right after the last message received. Event ids have no gaps, so the
+  server notices if anything it should send is missing. It then sends `resync`
+  instead of skipping ahead. Events are kept for 24 hours.
+- **Replace, don't merge.** Every event carries the whole entity after the
+  change, or before it for deletions. Applying one is a replace, and applying
+  one twice is harmless. On `session.moved`, update the table of every order in
+  that session.
+- **Control messages.** `ready` means the backlog has been sent and the client is
+  live. `resync` gives a reason and closes the stream; the client must close
+  its `EventSource` too, or the browser reconnects into the same `resync`. A
+  comment line every 15 seconds keeps idle connections open through proxies.
+
+Who sees what:
+
+| Viewer | Snapshot and events |
+| --- | --- |
+| `SERVICE`, `ADMIN` | Everything: every open session and all of its orders, paid ones included. |
+| `KITCHEN` | Open orders holding `APPETIZER` or `FOOD` items, with only those items. Item events for those types. Order and move events for orders that hold them. No `session.opened` or `session.closed`. |
+| `BAR` | The same for `DRINK` items. |
+
+Kitchen and bar clients should hide orders that have no items. An order stays
+in their state, empty, after its last item for their station is deleted.
+
+Open a single `EventSource` per browser tab and share it across views. Browsers
+allow about six HTTP/1.1 connections per origin, and every open stream holds
+one. For a guest, `session.closed` ends the stream for good, because the cookie
+stops working with it. Show a goodbye screen, not a reconnect spinner.
+| Guest | Their own table session only. `employeeId` and `employee` are always null. The stream ends after `session.closed`. |
+
+A long-lived stream re-checks its login or guest cookie every minute. It ends
+after sign-out and sends `resync` if the employee's role changed.
+
+Behind the stream is one shared reader per server. It holds a `LISTEN`
+connection, and on each commit-time `NOTIFY` it reads the new events from
+`Order_Event` once for every connected client. It also polls every 5 seconds in
+case a notification was missed, and it reconnects on its own if the connection
+drops.
 
 ### Order item status
 
