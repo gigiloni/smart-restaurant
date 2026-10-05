@@ -1,7 +1,25 @@
-
-#landing-bg {
-  background-image: url("/hero.jpg");
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center;
+.landing {
+  min-height: calc(100svh - 80px);
+  background:
+    linear-gradient(90deg, #0005, #0009),
+    url('/hero.jpg') center/cover;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: clamp(1rem, 5vw, 5rem);
+}
+.welcome-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: min(100%, 600px);
+  background: #212121ed;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border-radius: 1rem;
+}
+.welcome-panel h1 {
+  margin-block: 1rem;
+}
+.welcome-panel h2 {
+  line-height: 1.3;
 }

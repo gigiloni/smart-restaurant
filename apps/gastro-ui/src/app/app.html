@@ -1,3 +1,14 @@
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<p-toast/>
-<router-outlet></router-outlet>
+<header class="site-header">
+  <a class="brand" routerLink="/startseite">Bellavista</a>
+  <nav aria-label="Hauptnavigation">
+    <a routerLink="/startseite" routerLinkActive="active"
+      >Tisch {{ tables.selectedTable()?.tableNumber ?? 'wählen' }}</a
+    >
+    <a routerLink="/speisekarte" routerLinkActive="active">Speisekarte</a>
+    <a routerLink="/warenkorb" routerLinkActive="active">Warenkorb ({{ cart.count() }})</a>
+  </nav>
+</header>
+@if (cart.storageWarning()) {
+<p class="storage-warning" role="status">{{ cart.storageWarning() }}</p>
+}
+<router-outlet />

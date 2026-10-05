@@ -1,33 +1,22 @@
-import { AfterViewInit, Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { Table } from '@smart-restaurant/contracts';
+import { Component, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { TableService } from '../../services/table-service';
-import { Select } from 'primeng/select';
-import { FloatLabel } from 'primeng/floatlabel';
-import { FormsModule } from '@angular/forms';
-
 @Component({
   selector: 'app-startseite',
-  imports: [
-    Select,
-    FloatLabel,
-    FormsModule,
-  ],
+  imports: [RouterLink],
   templateUrl: './startseite.html',
   styleUrl: './startseite.css',
 })
-export class Startseite implements AfterViewInit {
-  protected tableService = inject(TableService);
-  protected selectedTable: Table | null = null;
-  protected router = inject(Router);
-
-  ngAfterViewInit() {
-    this.tableService.getTables()
+export class Startseite {
+  protected readonly tables = inject(TableService);
+  private readonly router = inject(Router);
+  constructor() {
+    this.tables.getTables();
   }
-
-  selectTable() {
-    this.tableService.selectedTable.set(this.selectedTable);
-
-    this.router.navigateByUrl("menu");
+  selectTable(event: Event): void {
+    this.tables.select(Number((event.target as HTMLSelectElement).value));
+  }
+  continue(): void {
+    if (this.tables.selectedTable()) void this.router.navigateByUrl('/speisekarte');
   }
 }

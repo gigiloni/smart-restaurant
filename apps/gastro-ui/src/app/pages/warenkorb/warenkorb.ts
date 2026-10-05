@@ -1,63 +1,89 @@
-import {AfterViewInit, Component, inject, OnInit} from '@angular/core';
-import type {CreateOrderDto} from "@smart-restaurant/contracts";
-import { MessageService } from 'primeng/api';
-import { OrderService } from '../../services/order-service';
-import {DataView} from "primeng/dataview";
+import { CurrencyPipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { finalize } from 'rxjs';
+import { CartService } from '../../services/cart-service';
+import { priceInCents } from '../../services/cart-state';
 import { ProductService } from '../../services/product-service';
-import {Button} from "primeng/button";
-import {CurrencyPipe} from "@angular/common";
-import {Image} from "primeng/image";
-
+import { OrderService } from '../../services/order-service';
+import { TableService } from '../../services/table-service';
 @Component({
   selector: 'app-warenkorb',
-  imports: [
-    DataView,
-    Button,
-    CurrencyPipe,
-    Image
-  ],
+  imports: [CurrencyPipe, RouterLink],
   templateUrl: './warenkorb.html',
   styleUrl: './warenkorb.css',
 })
-export class Warenkorb implements OnInit, AfterViewInit {
-  protected messageService = inject(MessageService);
-  protected orderService = inject(OrderService);
-  protected productService = inject(ProductService);
-
-  private warenkorb: CreateOrderDto | undefined;
-  private orderItemIdList: number[] = [];
-  private itemsInWarenkorb = false;
-
+export class Warenkorb {
+  protected readonly cart = inject(CartService);
+  protected readonly catalog = inject(ProductService);
+  protected readonly tables = inject(TableService);
+  private readonly orders = inject(OrderService);
+  protected readonly error = signal('');
+  protected readonly confirmation = signal<{ id: number; tableNumber: number } | null>(null);
+  protected readonly rows = computed(() =>
+    this.cart.lines().map((line) => {
+      const product = this.catalog.products().find((product) => product.id === line.productId);
+      return {
+        ...line,
+        product,
+        subtotal: product ? priceInCents(product.price) * line.quantity : 0,
+      };
+    }),
+  );
+  protected readonly total = computed(() =>
+    this.rows().reduce((sum, row) => sum + row.subtotal, 0),
+  );
+  protected readonly unavailable = computed(() => this.rows().some((row) => !row.product));
+  protected readonly canSubmit = computed(
+    () =>
+      this.cart.count() > 0 &&
+      !this.cart.submitting() &&
+      !this.catalog.loading() &&
+      !this.catalog.error() &&
+      !this.tables.loading() &&
+      !this.tables.error() &&
+      !!this.tables.selectedTable() &&
+      !this.unavailable(),
+  );
   constructor() {
-    sessionStorage.setItem('warenkorb', '[1,5,10]');
+    this.catalog.load(true);
+    this.tables.getTables();
   }
-
-  ngOnInit() {
-    let warenkorbString = sessionStorage.getItem("warenkorb");
-    let orderItemsIdList;
-    if (warenkorbString) orderItemsIdList = JSON.parse(warenkorbString);
-    if (orderItemsIdList && orderItemsIdList instanceof Array && orderItemsIdList.length > 0) {
-      this.orderItemIdList = orderItemsIdList;
-      this.itemsInWarenkorb = true;
-
-      this.productService.getProductsById(this.orderItemIdList)
-    } else {
-      this.itemsInWarenkorb = false;
-    }
+  submit(): void {
+    if (!this.canSubmit()) return;
+    const table = this.tables.selectedTable();
+    if (!table) return;
+    const items = this.cart
+      .lines()
+      .flatMap((line) =>
+        Array.from({ length: line.quantity }, () => ({ productId: line.productId })),
+      );
+    this.cart.submitting.set(true);
+    this.error.set('');
+    this.confirmation.set(null);
+    this.orders
+      .createOrder({ tableId: table.id, items })
+      .pipe(finalize(() => this.cart.submitting.set(false)))
+      .subscribe({
+        next: (order) => {
+          this.cart.clear();
+          this.confirmation.set({ id: order.id, tableNumber: order.table.tableNumber });
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status === 0 || error.status >= 500)
+            this.error.set(
+              'Die Bestellung konnte nicht bestätigt werden. Bitte beim Service nachfragen, ob sie eingegangen ist, bevor Sie erneut bestellen. Ihr Warenkorb bleibt erhalten.',
+            );
+          else if (error.status === 401 || error.status === 403)
+            this.error.set(
+              'Die Bestellung benötigt einen gültigen Tischzugang. Bitte den QR-Code am Tisch scannen oder den Service ansprechen. Ihr Warenkorb bleibt erhalten.',
+            );
+          else
+            this.error.set(
+              'Die Bestellung wurde abgelehnt. Bitte Tisch und Speisekarte erneut prüfen. Ihr Warenkorb bleibt erhalten.',
+            );
+        },
+      });
   }
-
-  ngAfterViewInit() {
-    if (!this.itemsInWarenkorb) {
-      this.messageService.add({
-        summary: 'Warenkorb leer',
-        detail: 'Bitte erst Artikel dem Warenkorb hinzufügen.',
-        severity: 'warning'
-      })
-    }
-  }
-
-  createOrder() {
-    this.orderService.createOrder(this.orderItemIdList)
-  }
-
 }

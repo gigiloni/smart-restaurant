@@ -1,33 +1,82 @@
-<div class="w-full flex flex-col justify-center">
-  <h2>Warenkorb</h2>
-
-  <p-dataView [value]="productService.productsInWarenkorb()">
-    <ng-template #list let-products>
-      <div class="grid grid-cols-1 gap-6">
-        @for (product of products; track product.id) {
-          <div class="grid grid-cols-5 rounded-2xl border">
-            <div class="col-span-1">
-              <p-image [preview]="true" alt="Image" src="/dishes/{{ product.name }}.jpg" />
-            </div>
-            <div class="col-span-4 grid grid-cols-1 gap-4 p-4">
-              <div class="flex justify-between">
-                <p class="font-bold!">{{ product.description }}</p>
-                <p class="font-bold!">
-                  {{ product.price | currency: 'EUR' : 'symbol' : '1.2-2' : 'de-DE' }}
-                </p>
-              </div>
-              <p class="text-sm!">
-                Zutaten: Spaghetti, San-Marzano-Tomaten, natives Olivenöl extra, Knoblauch, Basilikum,
-                Parmigiano Reggiano, Meersalz.
-              </p>
-<!--              <p-button (onClick)="removeFromWarenkorb(product.id)">-->
-<!--                <p class="text-sm!">Aus Warenkorb entfernen</p>-->
-<!--              </p-button>-->
-            </div>
-          </div>
+<main class="page">
+  <h2>Ihr Warenkorb</h2>
+  @if (confirmation(); as order) {
+  <section class="confirmation" role="status">
+    <h4>Vielen Dank für Ihre Bestellung!</h4>
+    <p>Bestellung #{{ order.id }} für Tisch {{ order.tableNumber }} wurde aufgenommen.</p>
+    <a routerLink="/speisekarte">Weitere Speisen entdecken</a>
+  </section>
+  } @if (error()) {
+  <p class="error-message" role="alert">{{ error() }}</p>
+  } @if (catalog.loading()) {
+  <p role="status">Aktuelle Produkte und Preise werden geladen …</p>
+  } @else if (catalog.error()) {
+  <p role="alert">{{ catalog.error() }}</p>
+  <button type="button" (click)="catalog.load(true)">Erneut versuchen</button> } @if
+  (tables.error()) {
+  <p role="alert">{{ tables.error() }}</p>
+  <button type="button" (click)="tables.getTables()">Tische erneut laden</button> } @if
+  (!cart.count()) { @if (!confirmation()) {
+  <p>Ihr Warenkorb ist leer.</p>
+  <a routerLink="/speisekarte">Zur Speisekarte</a> } } @else { @if (!catalog.loading() &&
+  !catalog.error()) {
+  <ul class="cart-list">
+    @for (row of rows(); track row.productId) {
+    <li class="cart-row">
+      <div>
+        <h4>{{ row.product?.name ?? 'Produkt nicht mehr verfügbar' }}</h4>
+        @if (row.product; as product) {
+        <p>{{ product.price | currency:'EUR' }} pro Stück</p>
+        } @else {
+        <p>Bitte vor der Bestellung entfernen.</p>
         }
       </div>
-    </ng-template>
-  </p-dataView>
-
-</div>
+      <div class="quantity-controls">
+        <button
+          type="button"
+          [disabled]="cart.submitting()"
+          (click)="cart.decrease(row.productId)"
+          [attr.aria-label]="(row.product?.name ?? 'Produkt') + ': Menge verringern'"
+        >
+          −
+        </button>
+        <span [attr.aria-label]="'Menge: ' + row.quantity">{{ row.quantity }}</span>
+        <button
+          type="button"
+          [disabled]="!cart.canAdd(row.productId) || !row.product"
+          (click)="cart.add(row.productId)"
+          [attr.aria-label]="(row.product?.name ?? 'Produkt') + ': Menge erhöhen'"
+        >
+          +
+        </button>
+      </div>
+      <strong>{{ row.subtotal / 100 | currency:'EUR' }}</strong>
+      <button
+        type="button"
+        class="secondary"
+        [disabled]="cart.submitting()"
+        (click)="cart.remove(row.productId)"
+        [attr.aria-label]="(row.product?.name ?? 'Produkt') + ' entfernen'"
+      >
+        Entfernen
+      </button>
+    </li>
+    }
+  </ul>
+  <div class="cart-total">
+    <span>Gesamtsumme</span><strong>{{ total() / 100 | currency:'EUR' }}</strong>
+  </div>
+  } @if (tables.selectedTable(); as table) {
+  <p>Bestellung für Tisch {{ table.tableNumber }}. <a routerLink="/startseite">Tisch ändern</a></p>
+  } @else {
+  <p>Bitte zuerst <a routerLink="/startseite">Ihren Tisch auswählen</a>.</p>
+  }
+  <div class="cart-actions">
+    <a routerLink="/speisekarte">Weiter auswählen</a>
+    <button type="button" [disabled]="!canSubmit()" (click)="submit()">
+      {{ cart.submitting() ? 'Bestellung wird gesendet …' : 'Verbindlich bestellen' }}
+    </button>
+  </div>
+  <p class="hint">Maximal 99 Stück pro Produkt und 200 Artikel pro Bestellung.</p>
+  }
+</main>

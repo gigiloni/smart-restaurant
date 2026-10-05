@@ -13,6 +13,7 @@
     "build": "pnpm db:generate && nx run-many -t build",
     "lint": "nx run-many -t lint",
     "test": "nx run-many -t test",
+    "test:cart": "node --test apps/gastro-ui/src/app/services/cart-state.test.ts",
     "format": "nx format:write",
     "format:check": "nx format:check",
     "graph": "nx graph"

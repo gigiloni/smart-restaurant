@@ -1,24 +1,20 @@
-<p-tabs value="0">
-  <p-tablist>
-    <p-tab value="0">
-      <p>Vorspeisen</p>
-    </p-tab>
-    <p-tab value="1">
-      <p>Hauptgänge</p>
-    </p-tab>
-    <p-tab value="2">
-      <p>Getränke</p>
-    </p-tab>
-  </p-tablist>
-  <p-tabpanels>
-    <p-tabpanel value="0">
-      <app-vorspeisen></app-vorspeisen>
-    </p-tabpanel>
-    <p-tabpanel value="1">
-      <app-hauptgaenge></app-hauptgaenge>
-    </p-tabpanel>
-    <p-tabpanel value="2">
-      <app-getraenke></app-getraenke>
-    </p-tabpanel>
-  </p-tabpanels>
-</p-tabs>
+<main class="page">
+  <h2>Unsere Speisekarte</h2>
+  @if (catalog.loading()) {
+  <p role="status">Speisekarte wird geladen …</p>
+  } @else if (catalog.error()) {
+  <p role="alert">{{ catalog.error() }}</p>
+  <button type="button" (click)="catalog.load(true)">Erneut versuchen</button> } @else {
+  <p-tabs value="0">
+    <p-tablist
+      ><p-tab value="0">Vorspeisen</p-tab><p-tab value="1">Hauptgänge</p-tab
+      ><p-tab value="2">Getränke</p-tab></p-tablist
+    >
+    <p-tabpanels>
+      <p-tabpanel value="0"><app-vorspeisen /></p-tabpanel>
+      <p-tabpanel value="1"><app-hauptgaenge /></p-tabpanel>
+      <p-tabpanel value="2"><app-getraenke /></p-tabpanel>
+    </p-tabpanels>
+  </p-tabs>
+  }
+</main>

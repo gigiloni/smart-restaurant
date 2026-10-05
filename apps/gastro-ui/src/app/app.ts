@@ -1,13 +1,14 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import {Toast} from "primeng/toast";
-
+import { CartService } from './services/cart-service';
+import { TableService } from './services/table-service';
 @Component({
-  imports: [RouterModule, Toast],
+  imports: [RouterModule],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
-  protected title = 'gastro-ui';
+  protected readonly cart = inject(CartService);
+  protected readonly tables = inject(TableService);
 }

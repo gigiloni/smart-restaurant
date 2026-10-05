@@ -1,21 +1,32 @@
-<div class="w-svw h-svh flex justify-end items-end lg:px-10 lg:py-5" id="landing-bg">
-  <div class="flex flex-col items-center text-center bg-(--background) lg:bg-transparent w-svw lg:w-fit p-10">
-    <h1 class="">Trattoria Bellavista</h1>
-    <h2 class="mb-4">Taste Italy, one bite at a time.</h2>
-
-    <p-floatlabel
-      variant="on"
+<main id="landing-bg" class="landing">
+  <section class="welcome-panel">
+    <h1>Trattoria Bellavista</h1>
+    <h2>Taste Italy, one bite at a time.</h2>
+    <p>Wählen Sie Ihren Tisch und entdecken Sie unsere Speisekarte.</p>
+    @if (tables.loading()) {
+    <p role="status">Tische werden geladen …</p>
+    } @if (tables.error()) {
+    <p role="alert">{{ tables.error() }}</p>
+    <button type="button" (click)="tables.getTables()">Erneut versuchen</button> }
+    <label for="table">Ihr Tisch</label>
+    <select
+      id="table"
+      [value]="tables.selectedTable()?.id ?? ''"
+      (change)="selectTable($event)"
+      [disabled]="tables.loading() || !!tables.error()"
     >
-      <p-select
-        [options]="tableService.tablesList()"
-        optionLabel="tableNumber"
-        optionValue="tableNumber"
-        class="min-w-40"
-        [(ngModel)]="selectedTable"
-        (onChange)="selectTable()"
-      />
-      <label>Tisch auswählen</label>
-    </p-floatlabel>
-  </div>
-
-</div>
+      <option value="">Bitte Tisch auswählen</option>
+      @for (table of tables.tablesList(); track table.id) {
+      <option [value]="table.id">Tisch {{ table.tableNumber }}</option>
+      }
+    </select>
+    <button
+      type="button"
+      [disabled]="!tables.selectedTable() || tables.loading() || !!tables.error()"
+      (click)="continue()"
+    >
+      Zur Speisekarte
+    </button>
+    <a routerLink="/speisekarte">Speisekarte ohne Tischauswahl ansehen</a>
+  </section>
+</main>

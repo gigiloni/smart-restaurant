@@ -1,27 +1,23 @@
 import { Route } from '@angular/router';
-import { Startseite } from './pages/startseite/startseite';
-import { Speisekarte } from './pages/speisekarte/speisekarte';
-import {Warenkorb} from "./pages/warenkorb/warenkorb";
-
 export const appRoutes: Route[] = [
-  {
-    path: '',
-    redirectTo: 'startseite',
-    pathMatch: 'full',
-  },
+  { path: '', redirectTo: 'startseite', pathMatch: 'full' },
   {
     path: 'startseite',
-    title: 'Startseite',
-    component: Startseite,
+    title: 'Willkommen | Bellavista',
+    loadComponent: () =>
+      import('./pages/startseite/startseite').then((module) => module.Startseite),
   },
   {
     path: 'speisekarte',
-    title: 'Speisekarte',
-    component: Speisekarte,
+    title: 'Speisekarte | Bellavista',
+    loadComponent: () =>
+      import('./pages/speisekarte/speisekarte').then((module) => module.Speisekarte),
   },
   {
     path: 'warenkorb',
-    title: 'Warenkorb',
-    component: Warenkorb,
-  }
+    title: 'Warenkorb | Bellavista',
+    loadComponent: () => import('./pages/warenkorb/warenkorb').then((module) => module.Warenkorb),
+  },
+  { path: 'menu', redirectTo: 'speisekarte', pathMatch: 'full' },
+  { path: '**', redirectTo: 'startseite' },
 ];
