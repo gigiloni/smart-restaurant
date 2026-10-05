@@ -1,0 +1,28 @@
+<p-dataview [value]="products()">
+  <ng-template #list let-products>
+    <div class="grid grid-cols-1 gap-6">
+      @for (product of products; track product.id) {
+        <div class="grid grid-cols-5 rounded-2xl border">
+          <div class="col-span-1">
+            <p-image [preview]="true" alt="Image" src="/dishes/{{ product.name }}.jpg" />
+          </div>
+          <div class="col-span-4 grid grid-cols-1 gap-4 p-4">
+            <div class="flex justify-between">
+              <p class="font-bold!">{{ product.description }}</p>
+              <p class="font-bold!">
+                {{ product.price | currency: 'EUR' : 'symbol' : '1.2-2' : 'de-DE' }}
+              </p>
+            </div>
+            <p class="text-sm!">
+              Zutaten: Spaghetti, San-Marzano-Tomaten, natives Olivenöl extra, Knoblauch, Basilikum,
+              Parmigiano Reggiano, Meersalz.
+            </p>
+            <p-button (onClick)="save(product.id)">
+              <p class="text-sm!">In den Warenkorb</p>
+            </p-button>
+          </div>
+        </div>
+      }
+    </div>
+  </ng-template>
+</p-dataview>

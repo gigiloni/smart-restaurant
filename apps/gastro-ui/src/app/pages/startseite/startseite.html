@@ -1,7 +1,21 @@
 <div class="w-svw h-svh flex justify-end items-end lg:px-10 lg:py-5" id="landing-bg">
   <div class="flex flex-col items-center text-center bg-(--background) lg:bg-transparent w-svw lg:w-fit p-10">
     <h1 class="">Trattoria Bellavista</h1>
-    <h2>Taste Italy, one bite at a time.</h2>
+    <h2 class="mb-4">Taste Italy, one bite at a time.</h2>
+
+    <p-floatlabel
+      variant="on"
+    >
+      <p-select
+        [options]="tableService.tablesList()"
+        optionLabel="tableNumber"
+        optionValue="tableNumber"
+        class="min-w-40"
+        [(ngModel)]="selectedTable"
+        (onChange)="selectTable()"
+      />
+      <label>Tisch auswählen</label>
+    </p-floatlabel>
   </div>
 
 </div>
