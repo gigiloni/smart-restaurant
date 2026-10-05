@@ -22,10 +22,6 @@
     >
   </section>
   } @else {
-  <div class="live-indicator" role="status">
-    <span [class.online]="live.connection() === 'connected'"></span>{{ live.connection() ===
-    'connected' ? 'Live verbunden' : 'Live-Verbindung wird hergestellt …' }}
-  </div>
   @if (live.error()) {
   <button type="button" class="secondary" (click)="live.reload()">Erneut laden</button>
   } @if (session(); as session) {

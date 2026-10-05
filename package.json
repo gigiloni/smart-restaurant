@@ -9,12 +9,9 @@
     "db:seed": "pnpm --dir backend exec prisma db seed",
     "db:bootstrap-admin": "pnpm --dir backend exec node prisma/bootstrap-admin.mjs",
     "start:frontend": "nx serve gastro-ui",
-    "start:backend": "tsc -b backend/tsconfig.dev.json && concurrently -k -n build,api \"tsc -b backend/tsconfig.dev.json --watch --preserveWatchOutput\" \"node --watch --env-file=backend/.env backend/dist/main.js\"",
-    "start:backend:nx": "nx serve backend",
+    "start:backend": "nx serve backend",
     "build": "pnpm db:generate && nx run-many -t build",
     "lint": "eslint apps/gastro-ui/src apps/gastro-ui/tests backend/src backend/tests contracts/src",
-    "test": "vitest run",
-    "test:frontend": "vitest run apps/gastro-ui/tests",
     "format": "nx format:write",
     "format:check": "nx format:check",
     "graph": "nx graph"
