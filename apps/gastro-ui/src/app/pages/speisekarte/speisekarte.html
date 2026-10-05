@@ -1,20 +1,47 @@
-<main class="page">
-  <h2>Unsere Speisekarte</h2>
-  @if (catalog.loading()) {
-  <p role="status">Speisekarte wird geladen …</p>
-  } @else if (catalog.error()) {
-  <p role="alert">{{ catalog.error() }}</p>
-  <button type="button" (click)="catalog.load(true)">Erneut versuchen</button> } @else {
-  <p-tabs value="0">
-    <p-tablist
-      ><p-tab value="0">Vorspeisen</p-tab><p-tab value="1">Hauptgänge</p-tab
-      ><p-tab value="2">Getränke</p-tab></p-tablist
-    >
-    <p-tabpanels>
-      <p-tabpanel value="0"><app-vorspeisen /></p-tabpanel>
-      <p-tabpanel value="1"><app-hauptgaenge /></p-tabpanel>
-      <p-tabpanel value="2"><app-getraenke /></p-tabpanel>
-    </p-tabpanels>
-  </p-tabs>
+<main class="page menu-page">
+  <div class="page-heading">
+    <div>
+      <span class="eyebrow">La cucina italiana</span>
+      <h2>Unsere Speisekarte</h2>
+      <p>Ein Stück Italien. Frisch zubereitet, mit Liebe serviert.</p>
+    </div>
+    <span class="menu-mark" aria-hidden="true">Buon appetito!</span>
+  </div>
+  <div class="ordering-layout">
+    <section class="menu-stage" aria-label="Speisen auswählen">
+      @if (catalog.loading()) {
+      <div class="stage-message" role="status">Speisekarte wird geladen …</div>
+      } @else if (catalog.error()) {
+      <div class="stage-message">
+        <p role="alert">{{ catalog.error() }}</p>
+        <button type="button" (click)="catalog.load(true)">Erneut versuchen</button>
+      </div>
+      } @else {
+      <p-tabs value="0" class="menu-tabs">
+        <p-tablist
+          ><p-tab value="0">Vorspeisen</p-tab><p-tab value="1">Hauptgänge</p-tab
+          ><p-tab value="2">Getränke</p-tab></p-tablist
+        >
+        <p-tabpanels>
+          <p-tabpanel value="0"><app-vorspeisen /></p-tabpanel>
+          <p-tabpanel value="1"><app-hauptgaenge /></p-tabpanel>
+          <p-tabpanel value="2"><app-getraenke /></p-tabpanel>
+        </p-tabpanels>
+      </p-tabs>
+      }
+    </section>
+    <div class="summary-column"><app-order-summary /></div>
+  </div>
+  <p class="photo-note">
+    Abbildungen zeigen Serviervorschläge. <a routerLink="/bildnachweise">Bildnachweise</a>
+  </p>
+  @if (state.cart.count()) {
+  <a
+    class="mobile-cart-bar"
+    routerLink="/warenkorb"
+    [attr.aria-label]="'Warenkorb ansehen, ' + state.cart.count() + ' Artikel'"
+    ><span class="mobile-count">{{ state.cart.count() }}</span><span>Warenkorb ansehen</span
+    ><strong>{{ state.total() / 100 | currency:'EUR' }}</strong><span aria-hidden="true">→</span></a
+  >
   }
 </main>

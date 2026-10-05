@@ -1,82 +1,98 @@
-<main class="page">
-  <h2>Ihr Warenkorb</h2>
-  @if (confirmation(); as order) {
-  <section class="confirmation" role="status">
-    <h4>Vielen Dank für Ihre Bestellung!</h4>
-    <p>Bestellung #{{ order.id }} für Tisch {{ order.tableNumber }} wurde aufgenommen.</p>
-    <a routerLink="/speisekarte">Weitere Speisen entdecken</a>
-  </section>
-  } @if (error()) {
-  <p class="error-message" role="alert">{{ error() }}</p>
-  } @if (catalog.loading()) {
-  <p role="status">Aktuelle Produkte und Preise werden geladen …</p>
-  } @else if (catalog.error()) {
-  <p role="alert">{{ catalog.error() }}</p>
-  <button type="button" (click)="catalog.load(true)">Erneut versuchen</button> } @if
-  (tables.error()) {
-  <p role="alert">{{ tables.error() }}</p>
-  <button type="button" (click)="tables.getTables()">Tische erneut laden</button> } @if
-  (!cart.count()) { @if (!confirmation()) {
-  <p>Ihr Warenkorb ist leer.</p>
-  <a routerLink="/speisekarte">Zur Speisekarte</a> } } @else { @if (!catalog.loading() &&
-  !catalog.error()) {
-  <ul class="cart-list">
-    @for (row of rows(); track row.productId) {
-    <li class="cart-row">
-      <div>
-        <h4>{{ row.product?.name ?? 'Produkt nicht mehr verfügbar' }}</h4>
-        @if (row.product; as product) {
-        <p>{{ product.price | currency:'EUR' }} pro Stück</p>
-        } @else {
-        <p>Bitte vor der Bestellung entfernen.</p>
+<main class="page cart-page">
+  <div class="page-heading">
+    <div>
+      <span class="eyebrow">Ihre Auswahl</span>
+      <h2>Ihr Warenkorb</h2>
+      <p>Noch ein Wunsch? Passen Sie Ihre Bestellung hier an.</p>
+    </div>
+    <a routerLink="/speisekarte" class="back-link">← Zur Speisekarte</a>
+  </div>
+  <div class="ordering-layout">
+    <section class="cart-content" aria-label="Artikel im Warenkorb">
+      @if (state.catalog.loading()) {
+      <p class="state-message" role="status">Aktuelle Produkte und Preise werden geladen …</p>
+      } @else if (state.catalog.error()) {
+      <p class="state-message">
+        Der Warenkorb bleibt erhalten, während die Speisekarte erneut geladen wird.
+      </p>
+      } @if (!state.cart.count()) { @if (state.receipt()) {
+      <div class="cart-empty">
+        <span class="empty-illustration success" aria-hidden="true">✓</span>
+        <h3>Jetzt ist die Küche dran.</h3>
+        <p>
+          Ihre Bestellung ist bei uns angekommen. Lehnen Sie sich zurück und genießen Sie Ihren
+          Besuch.
+        </p>
+        <a class="primary-button" routerLink="/speisekarte">Noch etwas entdecken →</a>
+      </div>
+      } @else {
+      <div class="cart-empty">
+        <span class="empty-illustration" aria-hidden="true">✧</span>
+        <h3>Platz für etwas Leckeres.</h3>
+        <p>Ihr Warenkorb ist leer.</p>
+        <a class="primary-button" routerLink="/speisekarte">Zur Speisekarte →</a>
+      </div>
+      } } @else if (!state.catalog.loading() && !state.catalog.error()) {
+      <div class="cart-section-heading">
+        <span>{{ state.cart.count() }} Artikel ausgewählt</span><span>Frisch für Ihren Tisch</span>
+      </div>
+      <ul class="cart-list">
+        @for (row of state.rows(); track row.productId) {
+        <li class="cart-row">
+          <img
+            class="cart-thumbnail"
+            [src]="imageFor(row.product?.name ?? '')"
+            [alt]="row.product?.name ?? 'Produkt nicht mehr verfügbar'"
+            width="112"
+            height="112"
+            loading="lazy"
+            (error)="imageFallback($event)"
+          />
+          <div class="cart-product">
+            <h4>{{ row.product?.name ?? 'Produkt nicht mehr verfügbar' }}</h4>
+            @if (row.product; as product) {
+            <p>{{ product.price | currency:'EUR' }} pro Stück</p>
+            } @else {
+            <p>Bitte vor der Bestellung entfernen.</p>
+            }
+            <button
+              type="button"
+              class="remove-button"
+              [disabled]="state.cart.submitting()"
+              (click)="state.cart.remove(row.productId)"
+              [attr.aria-label]="(row.product?.name ?? 'Produkt') + ' entfernen'"
+            >
+              Entfernen
+            </button>
+          </div>
+          <div class="quantity-controls">
+            <button
+              type="button"
+              [disabled]="state.cart.submitting()"
+              (click)="state.cart.decrease(row.productId)"
+              [attr.aria-label]="(row.product?.name ?? 'Produkt') + ': Menge verringern'"
+            >
+              −</button
+            ><span [attr.aria-label]="'Menge: ' + row.quantity">{{ row.quantity }}</span
+            ><button
+              type="button"
+              [disabled]="!state.cart.canAdd(row.productId) || !row.product"
+              (click)="state.cart.add(row.productId)"
+              [attr.aria-label]="(row.product?.name ?? 'Produkt') + ': Menge erhöhen'"
+            >
+              +
+            </button>
+          </div>
+          <strong class="row-price">{{ row.subtotal / 100 | currency:'EUR' }}</strong>
+        </li>
         }
-      </div>
-      <div class="quantity-controls">
-        <button
-          type="button"
-          [disabled]="cart.submitting()"
-          (click)="cart.decrease(row.productId)"
-          [attr.aria-label]="(row.product?.name ?? 'Produkt') + ': Menge verringern'"
-        >
-          −
-        </button>
-        <span [attr.aria-label]="'Menge: ' + row.quantity">{{ row.quantity }}</span>
-        <button
-          type="button"
-          [disabled]="!cart.canAdd(row.productId) || !row.product"
-          (click)="cart.add(row.productId)"
-          [attr.aria-label]="(row.product?.name ?? 'Produkt') + ': Menge erhöhen'"
-        >
-          +
-        </button>
-      </div>
-      <strong>{{ row.subtotal / 100 | currency:'EUR' }}</strong>
-      <button
-        type="button"
-        class="secondary"
-        [disabled]="cart.submitting()"
-        (click)="cart.remove(row.productId)"
-        [attr.aria-label]="(row.product?.name ?? 'Produkt') + ' entfernen'"
+      </ul>
+      <a routerLink="/speisekarte" class="continue-link"
+        ><span aria-hidden="true">＋</span> Weitere Speisen hinzufügen</a
       >
-        Entfernen
-      </button>
-    </li>
-    }
-  </ul>
-  <div class="cart-total">
-    <span>Gesamtsumme</span><strong>{{ total() / 100 | currency:'EUR' }}</strong>
+      <p class="hint">Maximal 99 Stück pro Produkt und 200 Artikel pro Bestellung.</p>
+      }
+    </section>
+    <div class="summary-column"><app-order-summary [checkout]="true" /></div>
   </div>
-  } @if (tables.selectedTable(); as table) {
-  <p>Bestellung für Tisch {{ table.tableNumber }}. <a routerLink="/startseite">Tisch ändern</a></p>
-  } @else {
-  <p>Bitte zuerst <a routerLink="/startseite">Ihren Tisch auswählen</a>.</p>
-  }
-  <div class="cart-actions">
-    <a routerLink="/speisekarte">Weiter auswählen</a>
-    <button type="button" [disabled]="!canSubmit()" (click)="submit()">
-      {{ cart.submitting() ? 'Bestellung wird gesendet …' : 'Verbindlich bestellen' }}
-    </button>
-  </div>
-  <p class="hint">Maximal 99 Stück pro Produkt und 200 Artikel pro Bestellung.</p>
-  }
 </main>

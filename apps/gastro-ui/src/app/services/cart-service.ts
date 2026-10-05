@@ -39,6 +39,9 @@ export class CartService {
   clear(): void {
     this.save([]);
   }
+  quantity(productId: number): number {
+    return this.lines().find((line) => line.productId === productId)?.quantity ?? 0;
+  }
   canAdd(productId: number): boolean {
     return (
       !this.submitting() &&

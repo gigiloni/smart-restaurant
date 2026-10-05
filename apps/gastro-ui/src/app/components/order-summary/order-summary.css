@@ -1,0 +1,131 @@
+:host {
+  display: block;
+}
+.order-summary {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}
+.summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.summary-title {
+  font-size: 2rem;
+  line-height: 1.1;
+  margin: 0.4rem 0;
+}
+.table-chip {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.85rem;
+  color: var(--text);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+.summary-lines {
+  list-style: none;
+  margin: 1.25rem 0;
+  padding: 0;
+  max-height: 38svh;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.summary-lines li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.65rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.summary-lines li > span:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+.line-quantity {
+  color: var(--text-muted);
+}
+.summary-lines strong {
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+.summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.3rem 0;
+  font-size: 0.95rem;
+}
+.summary-total strong {
+  font-size: 1.55rem;
+  white-space: nowrap;
+}
+.summary-cta {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  margin-top: 1rem;
+}
+.summary-note {
+  color: var(--text-muted);
+  font: 0.75rem/1.6 var(--font-ui);
+  margin-top: 1rem;
+}
+.summary-lines li.empty-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2rem 0;
+  border: 0;
+  color: var(--text-muted);
+}
+.empty-icon {
+  font-size: 2.5rem;
+  color: var(--light-accent);
+}
+.empty-summary p {
+  color: var(--text);
+  font-size: 1.4rem;
+}
+.receipt-status {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+.status-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  margin: 0 auto 1.2rem;
+  background: var(--green-accent);
+  color: var(--text);
+  font-size: 1.6rem;
+}
+.receipt-status p {
+  font: 0.9rem/1.6 var(--font-ui);
+  margin-top: 1rem;
+}
+.previous-order {
+  color: var(--success-text);
+  font: 0.75rem/1.6 var(--font-ui);
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+}

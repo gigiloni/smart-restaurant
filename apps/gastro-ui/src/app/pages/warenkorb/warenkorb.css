@@ -1,59 +1,175 @@
+.cart-content {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  background: var(--surface-base);
+}
+.cart-section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding-bottom: 1.3rem;
+  border-bottom: 1px solid var(--border);
+}
 .cart-list {
   list-style: none;
   padding: 0;
-  margin-block: 2rem;
+  margin: 0;
 }
 .cart-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) auto auto auto;
-  align-items: center;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
   gap: 1.25rem;
+  align-items: center;
   padding: 1.5rem 0;
-  border-bottom: 1px solid #ffffff26;
+  border-bottom: 1px solid var(--border);
+}
+.cart-thumbnail {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  grid-row: span 2;
+  background: var(--surface-soft);
+}
+.cart-product {
+  align-self: end;
+}
+.cart-product h4 {
+  font-size: 1.55rem;
+  line-height: 1.15;
+  margin-bottom: 0.35rem;
+}
+.cart-product p {
+  font: 0.8rem/1.5 var(--font-ui);
+  color: var(--text-muted);
 }
 .quantity-controls {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  border-radius: 100px;
+  padding: 0.15rem;
+  justify-self: end;
 }
 .quantity-controls button {
-  min-width: 44px;
-  padding: 0.5rem;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0.3rem;
+  border-radius: 50%;
+  background: transparent;
+  border: 0;
 }
-.cart-total {
-  display: flex;
-  justify-content: space-between;
-  font-size: 1.5rem;
-  margin-bottom: 1.5rem;
+.quantity-controls button:hover:not(:disabled) {
+  background: var(--surface-hover);
 }
-.cart-actions {
-  display: flex;
-  justify-content: space-between;
+.quantity-controls span {
+  min-width: 1.4rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.row-price {
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: end;
+  font-size: 1rem;
+  align-self: start;
+  white-space: nowrap;
+}
+.remove-button {
+  background: none;
+  border: none;
+  min-height: 32px;
+  padding: 0.3rem 0;
+  color: var(--text-muted);
+  text-decoration: underline;
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
+}
+.remove-button:hover:not(:disabled) {
+  color: var(--text);
+  background: none;
+}
+.continue-link {
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
+  gap: 0.6rem;
   margin-top: 1.5rem;
-}
-.confirmation {
-  background: #153c22;
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  margin-block: 1rem;
-}
-.error-message {
-  background: #531d1d;
-  padding: 1rem;
-  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  text-decoration: none;
 }
 .hint {
-  margin-top: 1rem;
-  font-size: 1rem;
+  font: 0.75rem/1.6 var(--font-ui);
+  color: var(--text-muted);
+  margin-top: 1.5rem;
 }
-@media (max-width: 700px) {
-  .cart-row {
-    grid-template-columns: 1fr auto;
+.cart-empty {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 2rem;
+  text-align: center;
+}
+.cart-empty h3 {
+  font-size: 2.5rem;
+  line-height: 1.1;
+}
+.cart-empty p {
+  font: 0.95rem/1.7 var(--font-ui);
+  color: var(--text-muted);
+  max-width: 400px;
+}
+.empty-illustration {
+  font-size: 4rem;
+  color: var(--light-accent);
+}
+.empty-illustration.success {
+  color: var(--success-text);
+}
+.state-message {
+  padding: 2rem 0;
+}
+@media (max-width: 600px) {
+  .cart-content {
+    padding: 1rem;
   }
-  .cart-row > div:first-child {
-    grid-column: 1 / -1;
+  .cart-section-heading span:last-child {
+    display: none;
+  }
+  .cart-row {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 0.8rem;
+  }
+  .cart-thumbnail {
+    width: 72px;
+    height: 72px;
+    grid-row: 1;
+  }
+  .cart-product {
+    align-self: center;
+  }
+  .cart-product h4 {
+    font-size: 1.3rem;
+  }
+  .quantity-controls {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .row-price {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    align-self: center;
+    font-size: 0.85rem;
+  }
+  .cart-empty {
+    padding: 1rem;
   }
 }

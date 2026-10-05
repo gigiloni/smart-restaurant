@@ -1,0 +1,112 @@
+# Frontend-Design und Gerichtsbilder
+
+Stand: 05.10.2026, Branch `dev/main-beta`.
+
+## Vergleich mit den Frontend-Branches des Teams
+
+Die Basis stammt aus `feature/EAD/startseite-warenkorb` und
+`feature/SRE/speisekarte-backend-anbindung`. Dort gab es Startseiten-Styles,
+die globalen Schrift-/Farbdefinitionen und das PrimeNG-Theme. Die CSS-Dateien
+für Speisekarte und Warenkorb waren weitgehend leer. Bilder lagen bereits unter
+`apps/gastro-ui/public/dishes`, wurden aber nicht zuverlässig anhand der tatsächlichen
+Produktnamen zugeordnet; die Warenkorbansicht enthielt außerdem feste Zutaten.
+
+Die erste Beta ergänzte funktionsfähige Layouts und einige direkt eingetragene
+Farben. Die jetzige Überarbeitung ersetzt diese zusätzlichen Farben durch Tokens.
+
+Unverändert erhalten:
+
+| Token / Grundlage              | Wert                                 |
+| ------------------------------ | ------------------------------------ |
+| `--background`                 | `#212121`                            |
+| `--light-accent`               | `#D9D9D9`                            |
+| `--green-accent`               | `#02702C`                            |
+| `--red-accent`                 | `#700204`                            |
+| `--text`                       | `#FFFFFF`                            |
+| Überschriften / Marken-Schrift | Cormorant Infant / Passions Conflict |
+| Marke                          | Bestehende `Logo.svg` und `hero.jpg` |
+| PrimeNG-Preset                 | `GastroTheme` auf Aura, unverändert  |
+
+Die gleichen Schriften werden jetzt als lokale WOFF2-Dateien unter `public/fonts`
+ausgeliefert. Es sind die bisherigen Familien und Gewichtungen; ihre SIL-OFL-Lizenzen
+sind beigefügt. Die deutsche/italienische Latin-Zeichenabdeckung bleibt vorhanden.
+Die Oberfläche benötigt dadurch beim Aufruf keine Verbindung zu Google Fonts.
+
+Zusätzliche Tokens in `apps/gastro-ui/src/styles.css` definieren Oberflächen,
+Rahmen, gedämpften Text, Rundungen und Schatten. Farben werden mit `color-mix`
+aus den vorhandenen Tokens abgeleitet. Komponenten referenzieren diese Tokens;
+zusätzliche eigene Hex-Farben wurden entfernt. Die ursprünglichen Logo-Verlaufsfarben
+sind weiterhin vorhanden. Das Layout muss sich unterscheiden, um die neuen Funktionen
+darzustellen; die gestalterische Grundlage bleibt dieselbe.
+
+## Überarbeitete Oberfläche
+
+- PrimeNG-Warenkorb-Badge zeigt die Artikelanzahl einschließlich Mengen.
+- Gerichtskarten mit Fotos, Preisen, Beschreibungen, aufklappbaren Rezeptzutaten
+  und einer Markierung bereits ausgewählter Artikel.
+- Kategorie-Tabs bleiben in einer festen Ansichtsfläche. Produkte scrollen innerhalb
+  dieser Fläche, sodass Kategorien mit unterschiedlich vielen Produkten die Tabs und
+  die seitliche Zusammenfassung nicht verschieben. Die Karten verwenden dieselben
+  Rasterbreiten und Bildproportionen.
+- Rechts steht auf Desktop eine Bestellzusammenfassung mit Positionen, Summen und
+  Tisch. Auf der Speisekarte führt sie zur Prüfung im Warenkorb; dort wird die
+  Bestellung verbindlich abgeschickt.
+- Nach erfolgreicher Abgabe zeigt dasselbe Panel Bestellnummer, Tisch und bestellte
+  Positionen. Diese Bestätigung bleibt während der Navigation im laufenden Frontend
+  erhalten. Sie ist keine Live-Verfolgung und keine Zahlungsquittung.
+- Mobil gibt es auf der Speisekarte eine kompakte Warenkorbleiste mit Anzahl und
+  Summe. Im Warenkorb folgt die Zusammenfassung unter den Artikelkarten.
+- Lade- und Fehlerzustände, Tastaturfokus und reduzierte Bewegung bleiben berücksichtigt.
+
+## Bilder speichern
+
+Für diese Beta sind Fotos lokale Frontend-Assets unter
+`apps/gastro-ui/public/dishes`. Sie werden mit dem Frontend ausgeliefert. Die Zuordnung
+in `services/product-images.ts` erfolgt anhand normalisierter Produktnamen, weil
+Datenbank-IDs je Installation variieren können. Für alle 20 Seed-Produkte ist ein Foto
+vorhanden; unbekannte neue Produkte und Ladefehler erhalten eine neutrale Illustration.
+Die bisherigen Bilddateien wurden erhalten.
+
+Für eine später vom Admin bearbeitbare Speisekarte empfiehlt sich:
+
+1. Bilddateien in einem Datei-/Objektspeicher mit HTTP-Auslieferung ablegen.
+2. Beim Produkt in der Datenbank Bild-URL oder Asset-Schlüssel und gegebenenfalls
+   Urheber-/Lizenzinformationen speichern.
+3. Die URL über die gemeinsamen Contracts ausliefern, statt Produktnamen zuzuordnen.
+
+Binäre Fotos müssen dafür nicht in der relationalen Produktdatenbank gespeichert
+werden. Ein Frontend-Asset ist für die feste Demo einfach; bei Admin-Uploads würde
+es sonst für jedes neue Bild ein Frontend-Deployment erfordern.
+
+Zutaten benötigen für die normale Speisekarte keine eigenen Bilder. Namen aus der
+Rezept-API reichen dafür aus. Ein späterer eigener Zutatenkatalog kann Fotos erhalten,
+falls sie für dessen Nutzer einen konkreten Zweck erfüllen.
+
+## Quellen und Lizenzen
+
+Die neuen Fotos stammen von Wikimedia Commons. Ihre einzelnen Lizenzen, Urheber,
+Originalseiten und Download-Adressen stehen in
+`apps/gastro-ui/public/dishes/image-credits.json`. Die Seite `/bildnachweise` zeigt
+diese Angaben samt Lizenzlinks. Es wurden CC BY, CC BY-SA, CC0 und als Public Domain
+ausgewiesene Fotos ausgewählt. Die Bilddateien behalten die jeweilige Lizenz;
+Vorschaubilder und der Ausschnitt bei der Darstellung sind vermerkt. Die übrige
+Anwendung wird dadurch nicht unter die Bildlizenz gestellt.
+
+Die Abbildungen sind Serviervorschläge, keine Fotos tatsächlich servierter Teller.
+Für ein reales Restaurant sollten sie durch eigene Aufnahmen ersetzt werden.
+
+Wikimedia-Anleitung zur Wiederverwendung:
+https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia
+
+## Prüfung
+
+Produktionsbuild, Frontend-Lint und fünf Tests mit `pnpm test:frontend` wurden erfolgreich
+ausgeführt. Die Tests prüfen Warenkorbzustand, Cent-Berechnung sowie Bilder und
+Quellen für alle Seed-Produkte. Zusätzlich wurde das gebaute Frontend in Chrome mit
+lokalen API-Fixtures erfolgreich geprüft: bestehender
+Bestellfluss, Kategorie-Positionen, Fotos, Badge, seitliche Bestätigung, mobile
+Darstellung und Bildnachweise. Die Maße und Positionen der Kategoriefläche und der
+Seitenleiste bleiben beim Umschalten gleich; es gab keine Browser-Laufzeitfehler.
+Desktop- und Mobil-Screenshots wurden visuell geprüft.
+Ein Backend-/PostgreSQL-Durchlauf gehört weiterhin
+zur späteren Integrationsprüfung.

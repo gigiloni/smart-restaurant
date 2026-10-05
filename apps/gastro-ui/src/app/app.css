@@ -1,32 +1,88 @@
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  padding: 1rem clamp(1rem, 4vw, 3rem);
-  background: #171717;
-  border-bottom: 1px solid #ffffff24;
+  gap: 1.5rem;
+  padding: 1.2rem clamp(1rem, 4vw, 3rem);
+  background: var(--surface-base);
+  border-bottom: 1px solid var(--border);
 }
 .brand {
-  font-family: 'Cormorant Infant', serif;
-  font-size: 2rem;
-  text-decoration: none;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.brand img {
+  width: 220px;
+  height: auto;
 }
 nav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+  align-items: center;
+  gap: 1.4rem;
 }
 nav a {
-  padding: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.2rem;
+  color: var(--text-muted);
   text-decoration: none;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
 }
 nav a.active {
-  color: #9ad2a7;
-  border-bottom: 2px solid #9ad2a7;
+  color: var(--text);
+  border-bottom-color: var(--green-accent);
+}
+nav .cart-link {
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  background: var(--surface-raised);
+  color: var(--text);
+}
+nav .cart-link.active {
+  border-color: var(--text-muted);
 }
 .storage-warning {
   padding: 1rem;
-  background: #553d18;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.site-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem clamp(1rem, 4vw, 3rem);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 650px) {
+  .site-header {
+    gap: 0.65rem;
+    padding: 1rem;
+    flex-wrap: wrap;
+  }
+  .brand img {
+    width: 165px;
+  }
+  nav {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+  nav a {
+    font-size: 0.8rem;
+  }
+  .site-footer {
+    flex-direction: column;
+    padding-bottom: 6rem;
+  }
 }

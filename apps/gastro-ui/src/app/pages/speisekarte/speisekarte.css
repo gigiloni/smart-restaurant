@@ -1,0 +1,79 @@
+.menu-stage {
+  height: clamp(580px, calc(100svh - 245px), 900px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+}
+.menu-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.stage-message {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2rem;
+  gap: 1rem;
+}
+.menu-mark {
+  font:
+    2.4rem 'Passions Conflict',
+    serif;
+  color: var(--light-accent);
+  white-space: nowrap;
+}
+.photo-note {
+  font: 0.75rem/1.7 var(--font-ui);
+  color: var(--text-muted);
+  margin-top: 1rem;
+}
+.mobile-cart-bar {
+  display: none;
+}
+@media (max-width: 950px) {
+  .menu-page {
+    padding-bottom: 6.5rem;
+  }
+  .menu-page .summary-column {
+    display: none;
+  }
+  .menu-mark {
+    display: none;
+  }
+  .menu-stage {
+    height: max(560px, calc(100svh - 275px));
+  }
+  .mobile-cart-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    position: fixed;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    left: 1rem;
+    right: 1rem;
+    z-index: 30;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    background: var(--red-accent);
+    color: var(--text);
+    text-decoration: none;
+    box-shadow: var(--shadow-panel);
+    font-size: 0.85rem;
+  }
+  .mobile-count {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    background: var(--text);
+    color: var(--red-accent);
+    border-radius: 50%;
+    font-weight: 700;
+  }
+}

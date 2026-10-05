@@ -1,7 +1,7 @@
 .landing {
   min-height: calc(100svh - 80px);
   background:
-    linear-gradient(90deg, #0005, #0009),
+    linear-gradient(90deg, transparent, var(--background)),
     url('/hero.jpg') center/cover;
   display: flex;
   align-items: center;
@@ -13,7 +13,7 @@
   flex-direction: column;
   gap: 1.25rem;
   width: min(100%, 600px);
-  background: #212121ed;
+  background: color-mix(in srgb, var(--background) 93%, transparent);
   padding: clamp(1.5rem, 4vw, 3rem);
   border-radius: 1rem;
 }

@@ -19,5 +19,11 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./pages/warenkorb/warenkorb').then((module) => module.Warenkorb),
   },
   { path: 'menu', redirectTo: 'speisekarte', pathMatch: 'full' },
+  {
+    path: 'bildnachweise',
+    title: 'Bildnachweise | Bellavista',
+    loadComponent: () =>
+      import('./pages/bildnachweise/bildnachweise').then((module) => module.Bildnachweise),
+  },
   { path: '**', redirectTo: 'startseite' },
 ];

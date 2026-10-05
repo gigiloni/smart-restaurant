@@ -1,14 +1,37 @@
 <header class="site-header">
-  <a class="brand" routerLink="/startseite">Bellavista</a>
+  <a class="brand" routerLink="/startseite"
+    ><img src="/Logo.svg" alt="Trattoria Bellavista" width="220" height="39"
+  /></a>
   <nav aria-label="Hauptnavigation">
-    <a routerLink="/startseite" routerLinkActive="active"
+    <a routerLink="/startseite" routerLinkActive="active" class="table-link"
       >Tisch {{ tables.selectedTable()?.tableNumber ?? 'wählen' }}</a
     >
     <a routerLink="/speisekarte" routerLinkActive="active">Speisekarte</a>
-    <a routerLink="/warenkorb" routerLinkActive="active">Warenkorb ({{ cart.count() }})</a>
+    <a
+      routerLink="/warenkorb"
+      routerLinkActive="active"
+      class="cart-link"
+      [attr.aria-label]="'Warenkorb (' + cart.count() + ')'"
+      ><svg
+        width="19"
+        height="21"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        aria-hidden="true"
+      >
+        <path d="M5 7h14l1 14H4L5 7Z" />
+        <path d="M8 8V5a4 4 0 0 1 8 0v3" /></svg
+      ><span>Warenkorb</span><p-badge [value]="cart.count()" styleClass="cart-badge"
+    /></a>
   </nav>
 </header>
 @if (cart.storageWarning()) {
 <p class="storage-warning" role="status">{{ cart.storageWarning() }}</p>
 }
 <router-outlet />
+<footer class="site-footer">
+  <span>Trattoria Bellavista · Con amore, dall'Italia.</span
+  ><a routerLink="/bildnachweise">Bildnachweise</a>
+</footer>

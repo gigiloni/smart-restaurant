@@ -1,0 +1,92 @@
+<aside class="order-summary" aria-label="Bestellzusammenfassung">
+  @if (state.receipt(); as receipt) { @if (!state.cart.count()) {
+  <div class="receipt-status" role="status">
+    <span class="status-icon" aria-hidden="true">✓</span>
+    <span class="eyebrow">Bestellung aufgenommen</span>
+    <h3 class="summary-title">Grazie mille!</h3>
+    <p>Bestellung #{{ receipt.id }} für Tisch {{ receipt.tableNumber }} wurde aufgenommen.</p>
+  </div>
+  <ul class="summary-lines">
+    @for (item of receipt.items; track $index) {
+    <li>
+      <span class="line-quantity">{{ item.quantity }}×</span><span>{{ item.name }}</span
+      ><strong>{{ item.subtotal / 100 | currency:'EUR' }}</strong>
+    </li>
+    }
+  </ul>
+  <div class="summary-total">
+    <span>Bestellwert</span><strong>{{ receipt.total / 100 | currency:'EUR' }}</strong>
+  </div>
+  <a class="primary-button summary-cta" routerLink="/speisekarte"
+    >Weitere Speisen entdecken <span aria-hidden="true">→</span></a
+  >
+  } } @if (state.cart.count() || !state.receipt()) {
+  <div class="summary-heading">
+    <div>
+      <span class="eyebrow">Frisch für Sie</span>
+      <h3 class="summary-title">Ihre Bestellung</h3>
+    </div>
+    <p-badge [value]="state.cart.count()" styleClass="cart-badge" />
+  </div>
+  <a routerLink="/startseite" class="table-chip"
+    >{{ state.tables.selectedTable() ? 'Tisch ' + state.tables.selectedTable()?.tableNumber : 'Tisch
+    auswählen' }} <span aria-hidden="true">↗</span></a
+  >
+  @if (state.catalog.loading()) {
+  <p role="status">Aktuelle Preise werden geladen …</p>
+  } @else if (state.catalog.error()) {
+  <p role="alert">{{ state.catalog.error() }}</p>
+  <button type="button" class="secondary" (click)="state.catalog.load(true)">
+    Erneut versuchen
+  </button>
+  } @else {
+  <ul class="summary-lines">
+    @for (row of state.rows(); track row.productId) {
+    <li>
+      <span class="line-quantity">{{ row.quantity }}×</span
+      ><span>{{ row.product?.name ?? 'Nicht mehr verfügbar' }}</span
+      ><strong>{{ row.subtotal / 100 | currency:'EUR' }}</strong>
+    </li>
+    } @empty {
+    <li class="empty-summary">
+      <span class="empty-icon" aria-hidden="true">✧</span>
+      <p>Was darf es sein?</p>
+      <span>Ihre Auswahl erscheint hier.</span>
+    </li>
+    }
+  </ul>
+  }
+  <div class="summary-total">
+    <span>Gesamtsumme</span><strong>{{ state.total() / 100 | currency:'EUR' }}</strong>
+  </div>
+  @if (checkout()) { @if (state.error()) {
+  <p class="error-message" role="alert">{{ state.error() }}</p>
+  } @if (state.tables.error()) {
+  <p role="alert">{{ state.tables.error() }}</p>
+  <button type="button" class="secondary" (click)="state.tables.getTables()">
+    Tische erneut laden
+  </button>
+  } @if (!state.tables.selectedTable()) {
+  <p class="summary-note">Bitte zuerst <a routerLink="/startseite">Ihren Tisch auswählen</a>.</p>
+  }
+  <button
+    type="button"
+    class="summary-cta"
+    [disabled]="!state.canSubmit()"
+    (click)="state.submit()"
+  >
+    {{ state.cart.submitting() ? 'Bestellung wird gesendet …' : 'Verbindlich bestellen' }}
+    <span aria-hidden="true">→</span>
+  </button>
+  } @else {
+  <a class="primary-button summary-cta" routerLink="/warenkorb"
+    >Bestellung prüfen <span aria-hidden="true">→</span></a
+  >
+  }
+  <p class="summary-note">Frisch zubereitet. Direkt an Ihren Tisch.</p>
+  @if (state.receipt(); as receipt) {
+  <p class="previous-order" role="status">
+    ✓ Bestellung #{{ receipt.id }} wurde bereits aufgenommen.
+  </p>
+  } }
+</aside>
