@@ -7,6 +7,7 @@ import { employeeRoleSchema } from './employee-role.schema.js';
  */
 export const employeeSchema = z
   .object({
+    hasLogin: z.boolean().optional(),
     id: z.number().int().positive().meta({ description: 'Employee id.', example: 1 }),
 
     firstname: z.string().meta({ description: 'Given name.', example: 'Mara' }),

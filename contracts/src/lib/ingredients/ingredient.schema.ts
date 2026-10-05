@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const ingredientSchema = z
   .object({
+    unit: z.enum(['g', 'ml', 'Stück']),
+    stock: z.number().int().nonnegative(),
     id: z.number().int().positive().meta({ description: 'Ingredient id.', example: 1 }),
 
     name: z.string().nullable().meta({

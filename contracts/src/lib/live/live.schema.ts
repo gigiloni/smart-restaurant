@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ingredientSchema } from '../ingredients/ingredient.schema.js';
 
 import { orderSchema } from '../orders/order.schema.js';
 import { tableSessionSchema } from '../table-sessions/table-session.schema.js';
@@ -16,6 +17,7 @@ const cursorSchema = z.number().int().nonnegative().meta({
 export const liveSnapshotSchema = z
   .object({
     cursor: cursorSchema,
+    ingredients: z.array(ingredientSchema).optional(),
 
     sessions: z.array(tableSessionSchema).meta({
       description:

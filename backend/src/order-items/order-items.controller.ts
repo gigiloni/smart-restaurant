@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
@@ -11,6 +20,10 @@ import {
 } from '@smart-restaurant/contracts';
 
 import { CurrentViewer } from '../auth/current-viewer.decorator.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+import { RequireLogin } from '../auth/access-metadata.js';
+import { OrdersService } from '../orders/orders.service.js';
 import type { Viewer } from '../auth/viewer.types.js';
 
 import {
@@ -27,8 +40,12 @@ import { OrderItemsService } from './order-items.service.js';
  */
 @ApiTags('Order items')
 @Controller('orders/:orderId/items')
+@RequireLogin({ guests: true })
 export class OrderItemsController {
-  constructor(private readonly orderItemsService: OrderItemsService) {}
+  constructor(
+    private readonly orderItemsService: OrderItemsService,
+    private readonly ordersService: OrdersService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -44,8 +61,11 @@ export class OrderItemsController {
   })
   @ApiValidationErrorResponse('`orderId` is not a positive integer.')
   @ApiEntityNotFoundResponse('No order with that id exists.')
-  findAll(@Param('orderId', { schema: idParamSchema }) orderId: number) {
-    return this.orderItemsService.findAll(orderId);
+  async findAll(
+    @Param('orderId', { schema: idParamSchema }) orderId: number,
+    @CurrentViewer() viewer: Viewer,
+  ) {
+    return (await this.ordersService.findOneVisible(orderId, viewer)).orderItems;
   }
 
   @Get(':id')
@@ -62,11 +82,17 @@ export class OrderItemsController {
   findOne(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentViewer() viewer: Viewer,
   ) {
-    return this.orderItemsService.findOne(orderId, id);
+    return this.findAll(orderId, viewer).then((items) => {
+      const item = items.find((item) => item.id === id);
+      if (!item) throw new NotFoundException(`Order item ${id} not found`);
+      return item;
+    });
   }
 
   @Post()
+  @RequireLogin({ guests: true, roles: ['ADMIN', 'SERVICE'] })
   @ApiOperation({
     summary: 'Add an item to an order',
     description:
@@ -99,10 +125,13 @@ export class OrderItemsController {
       });
     }
 
-    return this.orderItemsService.create(orderId, dto);
+    return this.orderItemsService.create(orderId, dto, {
+      actor: viewer?.kind === 'staff' ? { id: viewer.employeeId, role: viewer.role } : undefined,
+    });
   }
 
   @Patch(':id')
+  @RequireLogin()
   @ApiOperation({
     summary: 'Move an item to a new status',
     description:
@@ -152,11 +181,13 @@ export class OrderItemsController {
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateOrderItemSchema }) dto: UpdateOrderItemDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    return this.orderItemsService.update(orderId, id, dto);
+    return this.orderItemsService.update(orderId, id, dto, actor);
   }
 
   @Delete(':id')
+  @RequireLogin({ roles: ['ADMIN', 'SERVICE'] })
   @ApiOperation({
     summary: 'Remove an item from an order',
     description:
@@ -175,7 +206,8 @@ export class OrderItemsController {
   async remove(
     @Param('orderId', { schema: idParamSchema }) orderId: number,
     @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    return this.orderItemsService.remove(orderId, id);
+    return this.orderItemsService.remove(orderId, id, { actor });
   }
 }

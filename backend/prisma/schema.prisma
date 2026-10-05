@@ -113,10 +113,13 @@ model Verification {
 }
 
 model Ingredient {
-  id   Int     @id @default(autoincrement()) @map("ingredient_id")
-  name String? @db.VarChar(100)
+  id    Int     @id @default(autoincrement()) @map("ingredient_id")
+  name  String? @db.VarChar(100)
+  unit  String  @default("g") @db.VarChar(10)
+  stock Int     @default(0)
 
   products ProductIngredient[]
+  bookings StockBooking[]
 
   @@map("Ingredient")
 }
@@ -187,15 +190,34 @@ model Order {
 }
 
 model OrderItem {
-  id        Int             @id @default(autoincrement()) @map("order_item_id")
-  orderId   Int             @map("order_id")
-  productId Int             @map("product_id")
-  status    OrderItemStatus @default(OPEN)
+  id                 Int             @id @default(autoincrement()) @map("order_item_id")
+  orderId            Int             @map("order_id")
+  productId          Int             @map("product_id")
+  status             OrderItemStatus @default(OPEN)
+  preparationStarted Boolean         @default(false) @map("preparation_started")
+  remakeCount        Int             @default(0) @map("remake_count")
+  bookings           StockBooking[]
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
 
   @@map("Order_Item")
+}
+
+/// Booked recipe quantities survive recipe edits and item/order cancellation.
+model StockBooking {
+  id           Int        @id @default(autoincrement())
+  orderItemId  Int?       @map("order_item_id")
+  ingredientId Int        @map("ingredient_id")
+  attempt      Int        @default(0)
+  amount       Int
+  refunded     Boolean    @default(false)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  orderItem    OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@unique([orderItemId, attempt, ingredientId])
+  @@map("Stock_Booking")
 }
 
 model ProductIngredient {

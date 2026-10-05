@@ -13,6 +13,7 @@
 BEGIN;
 
 TRUNCATE TABLE
+  "Stock_Booking",
   "Order_Event",
   "Order_Item",
   "Order",
@@ -99,6 +100,11 @@ INSERT INTO "Ingredient" (ingredient_id, name) VALUES
   (41, 'Cipolla'),
   (42, 'Pane casereccio'),
   (43, 'Sale marino');
+
+-- Demonstration quantities only. Real installations enter measured stock in the admin UI.
+UPDATE "Ingredient" SET stock = 10000;
+UPDATE "Ingredient" SET unit = 'ml' WHERE ingredient_id IN (5, 17, 21, 36);
+UPDATE "Ingredient" SET unit = 'Stück', stock = 100 WHERE ingredient_id IN (9, 13, 14, 31, 42);
 
 --
 -- Menu. Covers every ProductType variant: APPETIZER, FOOD, DRINK.
@@ -258,6 +264,15 @@ INSERT INTO "Order_Item" (order_item_id, order_id, product_id, status) VALUES
   (32, 10, 1,  'IN_PROGRESS'),
   (33, 10, 14, 'OPEN'),
   (34, 10, 19, 'OPEN');
+
+UPDATE "Order_Item" SET preparation_started = true WHERE status <> 'OPEN';
+INSERT INTO "Stock_Booking" (order_item_id, ingredient_id, amount)
+SELECT oi.order_item_id, recipe.ingredient_id, recipe.amount
+FROM "Order_Item" oi JOIN "Product_Ingredient" recipe ON recipe.product_id = oi.product_id
+WHERE recipe.amount > 0;
+UPDATE "Ingredient" AS ingredient SET stock = stock - used.amount
+FROM (SELECT ingredient_id, SUM(amount)::integer AS amount FROM "Stock_Booking" GROUP BY ingredient_id) AS used
+WHERE ingredient.ingredient_id = used.ingredient_id;
 
 --
 -- Explicit ids were used above, so the identity sequences have to be moved past

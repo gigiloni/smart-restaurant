@@ -16,19 +16,24 @@ import {
 
 import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { Transactional } from '@nestjs-cls/transactional';
+import { AccessService } from '../auth/access.service.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { OrderLock, type OrderChange } from '../orders/order-lock.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { OrderItemsRepository, type OrderItemWithDetails } from './order-items.repository.js';
+import { StockService } from '../ingredients/stock.service.js';
 
 @Injectable()
 export class OrderItemsService {
   constructor(
+    private readonly stock: StockService,
     private readonly orderLock: OrderLock,
     private readonly events: OrderEventsWriter,
     private readonly orderItemsRepository: OrderItemsRepository,
     private readonly ordersService: OrdersService,
+    private readonly access: AccessService,
   ) {}
 
   async findAll(orderId: number): Promise<OrderItemWithDetails[]> {
@@ -75,6 +80,7 @@ export class OrderItemsService {
     orderId: number,
     id: number,
     dto: UpdateOrderItemDto,
+    actor: AuthenticatedEmployee,
   ): Promise<OrderItemWithDetails> {
     // Anyone whose role may make this move may make it, owner or not.
     await this.orderLock.forChange(orderId);
@@ -84,6 +90,8 @@ export class OrderItemsService {
     if (!orderItem) {
       throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
     }
+
+    this.access.requireStatusChange(actor, orderItem.product.type, dto.status);
 
     const kind = classifyOrderItemTransition(orderItem.status, dto.status, orderItem.product.type);
 
@@ -99,7 +107,13 @@ export class OrderItemsService {
       return orderItem;
     }
 
-    const updated = await this.orderItemsRepository.updateWhenStatusIs(id, orderItem.status, dto);
+    const remake = orderItem.status === 'REMAKE' && dto.status === 'IN_PROGRESS';
+    const ingredients = remake ? await this.stock.book([orderItem], orderItem.remakeCount + 1) : [];
+    const updated = await this.orderItemsRepository.updateWhenStatusIs(id, orderItem.status, {
+      ...dto,
+      preparationStarted: orderItem.preparationStarted || dto.status !== 'OPEN',
+      remakeCount: orderItem.remakeCount + (remake ? 1 : 0),
+    });
 
     if (updated === null) {
       throw new ConflictException(
@@ -109,6 +123,7 @@ export class OrderItemsService {
     }
 
     await this.events.itemStatusChanged(updated, orderItem.status);
+    await this.stock.publish(ingredients);
 
     return updated;
   }
@@ -123,9 +138,11 @@ export class OrderItemsService {
       throw new NotFoundException(`Order item ${id} not found on order ${orderId}`);
     }
 
+    const ingredients = await this.stock.refund([orderItem]);
     const removed = await this.orderItemsRepository.remove(id);
 
     await this.events.itemDeleted(removed);
+    await this.stock.publish(ingredients);
 
     return removed;
   }
@@ -139,8 +156,9 @@ export class OrderItemsService {
     await this.orderLock.forChange(orderId, by);
 
     const created = await this.orderItemsRepository.create(orderId, dto);
-
+    const ingredients = await this.stock.book([created]);
     await this.events.itemCreated(created);
+    await this.stock.publish(ingredients);
 
     return created;
   }

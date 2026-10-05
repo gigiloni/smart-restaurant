@@ -12,7 +12,7 @@ import { Prisma } from '../generated/prisma/client.js';
 const productDetailsInclude = {
   ingredients: {
     include: {
-      ingredient: true,
+      ingredient: { select: { id: true, name: true, unit: true } },
     },
   },
 } satisfies Prisma.ProductInclude;

@@ -58,7 +58,7 @@ export const productIngredientLineSchema = z
 
     amount: z.number().int().meta({ description: 'Quantity used.', example: 150 }),
 
-    ingredient: ingredientSchema,
+    ingredient: ingredientSchema.omit({ stock: true }),
   })
   .meta({
     id: 'ProductIngredient',

@@ -20,7 +20,9 @@
   <a class="primary-button summary-cta" routerLink="/speisekarte"
     >Weitere Speisen entdecken <span aria-hidden="true">→</span></a
   >
-  } } @if (state.cart.count() || !state.receipt()) {
+  @if(state.auth.guest()){<a class="primary-button summary-cta" routerLink="/bestellungen"
+    >Bestellung live verfolgen →</a
+  >} } } @if (state.cart.count() || !state.receipt()) {
   <div class="summary-heading">
     <div>
       <span class="eyebrow">Frisch für Sie</span>
@@ -66,8 +68,11 @@
   <button type="button" class="secondary" (click)="state.tables.getTables()">
     Tische erneut laden
   </button>
-  } @if (!state.tables.selectedTable()) {
-  <p class="summary-note">Bitte zuerst <a routerLink="/startseite">Ihren Tisch auswählen</a>.</p>
+  } @if (!state.auth.guest() && !state.auth.hasRole('ADMIN', 'SERVICE')) {
+  <p class="summary-note">
+    Zum Bestellen bitte den QR-Code am Tisch scannen. Ihr Warenkorb bleibt erhalten.
+    <a routerLink="/gastzugang">Zum Tischzugang</a>
+  </p>
   }
   <button
     type="button"

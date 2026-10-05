@@ -34,10 +34,12 @@ import { EmployeesService } from './employees.service.js';
 
 @ApiTags('Employees')
 @Controller('employees')
+@RequireLogin({ roles: ['ADMIN'] })
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Get()
+  @RequireLogin({ roles: ['ADMIN', 'SERVICE'] })
   @ApiOperation({
     summary: 'List all employees',
     description:
@@ -53,7 +55,6 @@ export class EmployeesController {
   }
 
   @Get('me')
-  // The one route that keeps a login: without one there is no "me".
   @RequireLogin()
   @ApiOperation({
     summary: 'Get the signed-in employee profile',

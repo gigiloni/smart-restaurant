@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ingredientSchema } from '../ingredients/ingredient.schema.js';
 
 import { timestampSchema } from '../common/timestamp.schema.js';
 import { orderItemStatusSchema } from '../order-items/order-item-status.schema.js';
@@ -23,6 +24,7 @@ export const orderEventTypeSchema = z
     'item.created',
     'item.status_changed',
     'item.deleted',
+    'inventory.updated',
   ])
   .meta({
     id: 'OrderEventType',
@@ -97,6 +99,14 @@ export const orderEventSchema = z
       data: itemData.extend({ previousStatus: orderItemStatusSchema }),
     }),
     z.object({ ...envelope, type: z.literal('item.deleted'), data: itemData }),
+    z.object({
+      ...envelope,
+      type: z.literal('inventory.updated'),
+      data: z.object({
+        ingredientId: z.number().int().positive(),
+        ingredient: ingredientSchema.nullable(),
+      }),
+    }),
   ])
   .meta({
     id: 'OrderEvent',

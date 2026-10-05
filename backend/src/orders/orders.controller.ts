@@ -21,6 +21,9 @@ import {
 } from '@smart-restaurant/contracts';
 
 import { CurrentViewer } from '../auth/current-viewer.decorator.js';
+import { CurrentEmployee } from '../auth/current-employee.decorator.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
+import { RequireLogin } from '../auth/access-metadata.js';
 import type { Viewer } from '../auth/viewer.types.js';
 
 import {
@@ -33,6 +36,7 @@ import { OrdersService } from './orders.service.js';
 
 @ApiTags('Orders')
 @Controller('orders')
+@RequireLogin({ guests: true })
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
@@ -55,8 +59,11 @@ export class OrdersController {
       MAX_PAGE_SIZE +
       ', or `skip` is negative.',
   )
-  findAll(@Query({ schema: paginationQuerySchema }) pagination: PaginationQuery) {
-    return this.ordersService.findAll(pagination);
+  findAll(
+    @Query({ schema: paginationQuerySchema }) pagination: PaginationQuery,
+    @CurrentViewer() viewer: Viewer,
+  ) {
+    return this.ordersService.findVisible(pagination, viewer);
   }
 
   @Get(':id')
@@ -69,11 +76,12 @@ export class OrdersController {
   @ApiOkResponse({ description: 'The requested order.', standardSchema: orderSchema })
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No order with that id exists.')
-  findOne(@Param('id', { schema: idParamSchema }) id: number) {
-    return this.ordersService.findOne(id);
+  findOne(@Param('id', { schema: idParamSchema }) id: number, @CurrentViewer() viewer: Viewer) {
+    return this.ordersService.findOneVisible(id, viewer);
   }
 
   @Post()
+  @RequireLogin({ guests: true, roles: ['ADMIN', 'SERVICE'] })
   @ApiOperation({
     summary: 'Open an order',
     description:
@@ -112,6 +120,7 @@ export class OrdersController {
   }
 
   @Patch(':id')
+  @RequireLogin({ roles: ['ADMIN', 'SERVICE'] })
   @ApiOperation({
     summary: 'Reassign an order',
     description:
@@ -128,11 +137,13 @@ export class OrdersController {
   async update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateOrderSchema }) dto: UpdateOrderDto,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    return this.ordersService.update(id, dto);
+    return this.ordersService.update(id, dto, { actor });
   }
 
   @Post(':id/close')
+  @RequireLogin({ roles: ['ADMIN', 'SERVICE'] })
   @HttpCode(200)
   @ApiOperation({
     summary: 'Close an order (take payment)',
@@ -147,11 +158,15 @@ export class OrdersController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No order with that id exists.')
   @ApiEntityConflictResponse('At least one item on the order has not been served yet.')
-  async close(@Param('id', { schema: idParamSchema }) id: number) {
-    return this.ordersService.close(id);
+  async close(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    return this.ordersService.close(id, { actor });
   }
 
   @Delete(':id')
+  @RequireLogin({ roles: ['ADMIN', 'SERVICE'] })
   @ApiOperation({
     summary: 'Delete an order',
     description:
@@ -167,7 +182,10 @@ export class OrdersController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No order with that id exists.')
   @ApiEntityConflictResponse('The order is closed: it has been paid and is frozen.')
-  async remove(@Param('id', { schema: idParamSchema }) id: number) {
-    return this.ordersService.remove(id);
+  async remove(
+    @Param('id', { schema: idParamSchema }) id: number,
+    @CurrentEmployee() actor: AuthenticatedEmployee,
+  ) {
+    return this.ordersService.remove(id, { actor });
   }
 }

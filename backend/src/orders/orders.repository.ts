@@ -13,7 +13,7 @@ import { Prisma } from '../generated/prisma/client.js';
 
 export const orderDetailsInclude = {
   table: true,
-  employee: true,
+  employee: { select: { id: true, firstname: true, lastname: true, role: true } },
 
   orderItems: {
     include: {
@@ -46,8 +46,12 @@ export class OrdersRepository {
     return this.txHost.tx;
   }
 
-  findAll({ take, skip }: PaginationQuery): Promise<OrderWithDetails[]> {
+  findAll(
+    { take, skip }: PaginationQuery,
+    where?: Prisma.OrderWhereInput,
+  ): Promise<OrderWithDetails[]> {
     return this.db.order.findMany({
+      where,
       include: orderDetailsInclude,
 
       orderBy: {

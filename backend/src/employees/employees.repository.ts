@@ -22,11 +22,12 @@ const employeePublicSelect = {
 export class EmployeesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.employee.findMany({
+  async findAll() {
+    const employees = await this.prisma.employee.findMany({
       orderBy: [{ lastname: 'asc' }, { firstname: 'asc' }],
-      select: employeePublicSelect,
+      select: { ...employeePublicSelect, authUserId: true },
     });
+    return employees.map(({ authUserId, ...employee }) => ({ ...employee, hasLogin: !!authUserId }));
   }
 
   findById(id: number) {

@@ -19,6 +19,7 @@ import {
 
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
 import { CurrentViewer } from '../auth/current-viewer.decorator.js';
+import { RequireLogin } from '../auth/access-metadata.js';
 import { ViewerResolver } from '../auth/viewer-resolver.service.js';
 import type { Viewer } from '../auth/viewer.types.js';
 import { ApiValidationErrorResponse } from '../swagger/api-docs.decorators.js';
@@ -31,6 +32,7 @@ const EVENT_ID = /^\d{1,15}$/;
 
 @ApiTags('Live')
 @Controller('live')
+@RequireLogin({ guests: true })
 export class LiveController {
   constructor(
     private readonly liveService: LiveService,
@@ -45,7 +47,7 @@ export class LiveController {
     description:
       'Returns the table sessions and orders the caller may see, read in one consistent snapshot, and the `cursor` of the last change it reflects. ' +
       'Load this first, then open `GET /live/events?since=<cursor>`.\n\n' +
-      '- **Anonymous callers, SERVICE, ADMIN**: every open session and all of its orders, paid ones included.\n' +
+      '- **SERVICE, ADMIN**: every open session and all of its orders, paid ones included.\n' +
       '- **KITCHEN**: open orders holding at least one APPETIZER or FOOD item, with only those items, and their sessions.\n' +
       '- **BAR**: the same for DRINK items.\n' +
       '- **Guests**: their own session and all of its orders. `employeeId` and `employee` are always null.',

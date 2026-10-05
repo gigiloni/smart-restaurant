@@ -17,9 +17,11 @@ import {
   ApiValidationErrorResponse,
 } from '../swagger/api-docs.decorators.js';
 import { IngredientsService } from './ingredients.service.js';
+import { RequireLogin } from '../auth/access-metadata.js';
 
 @ApiTags('Ingredients')
 @Controller('ingredients')
+@RequireLogin({ roles: ['ADMIN'] })
 export class IngredientsController {
   constructor(private readonly ingredientsService: IngredientsService) {}
 

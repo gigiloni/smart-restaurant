@@ -57,6 +57,13 @@ export class AuthGuard implements CanActivate {
     }
 
     if (resolved && (resolved.viewer.kind === 'staff' || requirement.guests)) {
+      if (
+        resolved.viewer.kind === 'staff' &&
+        requirement.roles &&
+        !requirement.roles.includes(resolved.viewer.role)
+      ) {
+        throw new ForbiddenException('This role cannot access this operation');
+      }
       return true;
     }
 

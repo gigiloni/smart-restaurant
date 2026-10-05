@@ -12,21 +12,16 @@
     "importHelpers": true,
     "target": "es2015",
     "module": "esnext",
-    "lib": [
-      "es2020",
-      "dom"
-    ],
+    "lib": ["es2020", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "strict": false,
     "paths": {
-      "@smart-restaurant/contracts": [
-        "./contracts/src/index.ts"
-      ]
+      "@smart-restaurant/contracts/order-item-transitions": [
+        "./contracts/src/lib/order-items/order-item-transitions.ts"
+      ],
+      "@smart-restaurant/contracts": ["./contracts/src/index.ts"]
     }
   },
-  "exclude": [
-    "node_modules",
-    "tmp"
-  ]
+  "exclude": ["node_modules", "tmp"]
 }

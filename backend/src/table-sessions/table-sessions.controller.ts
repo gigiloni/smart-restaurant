@@ -18,6 +18,7 @@ import {
   ApiValidationErrorResponse,
 } from '../swagger/api-docs.decorators.js';
 import { TableSessionsService } from './table-sessions.service.js';
+import { RequireLogin } from '../auth/access-metadata.js';
 
 /** The part of the Fastify reply this controller touches, without depending on fastify directly. */
 interface StatusReply {
@@ -26,6 +27,7 @@ interface StatusReply {
 
 @ApiTags('Table sessions')
 @Controller('table-sessions')
+@RequireLogin({ roles: ['ADMIN', 'SERVICE'] })
 export class TableSessionsController {
   constructor(private readonly tableSessionsService: TableSessionsService) {}
 

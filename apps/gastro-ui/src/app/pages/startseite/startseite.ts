@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Select } from 'primeng/select';
 import { TableService } from '../../services/table-service';
+import { AuthService } from '../../services/auth-service';
 @Component({
   selector: 'app-startseite',
   imports: [RouterLink, FormsModule, Select],
@@ -11,6 +12,7 @@ import { TableService } from '../../services/table-service';
 })
 export class Startseite {
   protected readonly tables = inject(TableService);
+  protected readonly auth = inject(AuthService);
   protected readonly tableOptions = computed(() =>
     this.tables.tablesList().map((table) => ({
       id: table.id,

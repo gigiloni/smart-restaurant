@@ -69,7 +69,8 @@ export class LiveService {
         orderBy: { id: 'asc' },
       });
 
-      return { sessions, orders };
+      const ingredients = viewer?.kind === 'staff' && viewer.role === 'ADMIN' ? await db.ingredient.findMany({ orderBy: { name: 'asc' } }) : [];
+      return { sessions, orders, ingredients };
     }
 
     const orders = await db.order.findMany({

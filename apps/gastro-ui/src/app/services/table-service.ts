@@ -9,6 +9,16 @@ export class TableService {
   readonly selectedTable = signal<Table | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
+  readonly guestTableId = signal<number | null>(null);
+  bindGuest(id: number | null): void {
+    if (this.guestTableId() === id) return;
+    this.guestTableId.set(id);
+    if (id === null) this.select(0);
+    else {
+      this.select(id);
+      if (!this.tablesList().length) this.getTables();
+    }
+  }
   getTables(): void {
     if (this.loading()) return;
     this.loading.set(true);
@@ -19,7 +29,7 @@ export class TableService {
       .subscribe({
         next: (tables) => {
           this.tablesList.set(tables);
-          let id: number | undefined = this.selectedTable()?.id;
+          let id: number | undefined = this.guestTableId() ?? this.selectedTable()?.id;
           try {
             id ??= Number(sessionStorage.getItem('sr.table.v1'));
           } catch {
@@ -32,6 +42,7 @@ export class TableService {
       });
   }
   select(id: number): void {
+    if (this.guestTableId() !== null && id !== this.guestTableId()) return;
     const table = this.tablesList().find((entry) => entry.id === id) ?? null;
     this.selectedTable.set(table);
     try {

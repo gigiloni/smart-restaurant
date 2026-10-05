@@ -3,8 +3,16 @@
     ><img src="/Logo.svg" alt="Trattoria Bellavista" width="220" height="39"
   /></a>
   <nav aria-label="Hauptnavigation">
-    <a routerLink="/startseite" routerLinkActive="active" class="table-link"
-      >Tisch {{ tables.selectedTable()?.tableNumber ?? 'wählen' }}</a
+    @if (staffArea()) {
+    <a routerLink="/mitarbeiter">Mitarbeiterbereich</a>
+    <a routerLink="/speisekarte">Speisekarte ansehen</a>
+    } @else {
+    <a
+      [routerLink]="auth.viewer() ? '/startseite' : '/gastzugang'"
+      routerLinkActive="active"
+      class="table-link"
+      >{{ tables.selectedTable() ? 'Tisch ' + tables.selectedTable()?.tableNumber : 'Tischzugang'
+      }}</a
     >
     <a routerLink="/speisekarte" routerLinkActive="active">Speisekarte</a>
     <a
@@ -25,6 +33,7 @@
         <path d="M8 8V5a4 4 0 0 1 8 0v3" /></svg
       ><span>Warenkorb</span><p-badge [value]="cart.count()" styleClass="cart-badge"
     /></a>
+    @if(auth.guest()){<a routerLink="/bestellungen" routerLinkActive="active">Bestellungen</a>} }
   </nav>
 </header>
 @if (cart.storageWarning()) {
@@ -33,4 +42,5 @@
 <router-outlet />
 <footer class="site-footer">
   <span>Trattoria Bellavista · Con amore, dall'Italia.</span>
+  <a [routerLink]="auth.staff() ? '/mitarbeiter' : '/anmelden'">Mitarbeiterbereich</a>
 </footer>

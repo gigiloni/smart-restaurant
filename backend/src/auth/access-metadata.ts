@@ -1,5 +1,6 @@
 import { applyDecorators, SetMetadata } from '@nestjs/common';
 import { ApiCookieAuth } from '@nestjs/swagger';
+import type { EmployeeRole } from '@smart-restaurant/contracts';
 
 export const REQUIRE_LOGIN = 'smart-restaurant:require-login';
 
@@ -9,15 +10,12 @@ export const GUEST_COOKIE = 'sr_guest';
 export interface LoginRequirement {
   /** Also accept a guest seated through a table QR code, not only staff. */
   guests?: boolean;
+  roles?: readonly EmployeeRole[];
 }
 
 /**
- * Makes a route require a login. Routes are public unless marked: the
- * frontend has no login pages yet, so access control is switched off for now.
- *
- * To put a route behind login again, add `@RequireLogin()` (staff only) or
- * `@RequireLogin({ guests: true })` (staff or a seated guest), and restore its
- * role check from `AccessService`, e.g. `this.access.requireAdmin(actor)`.
+ * Public catalog routes stay unmarked. Protected routes require staff or an
+ * explicitly accepted table guest; optional roles restrict staff further.
  */
 export const RequireLogin = (requirement: LoginRequirement = {}) =>
   applyDecorators(

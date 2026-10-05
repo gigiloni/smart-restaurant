@@ -481,29 +481,27 @@ At most 100 ids are accepted. Unknown ids are left out of the result.
 
 ### Login and access rules
 
-> **Access control is switched off for now: every route is public.** The
-> frontend has no login pages yet, so the global guard no longer rejects
-> anonymous requests and the controllers no longer call the role checks. The
-> implementation is kept: login still works, a signed-in caller or seated guest
-> is still recognised, and `AccessService` holds the role rules below. Only
-> `GET /api/employees/me` still requires a login, since without one there is no
-> "me". To put a route behind login again, add `@RequireLogin()` (staff) or
-> `@RequireLogin({ guests: true })` (staff or seated guest) to it and restore
-> its role check, e.g. `this.access.requireAdmin(actor)`. The rules below, and
-> the roles in the lifecycle tables, describe how access is meant to work once
-> it is switched back on.
+Access control is enabled on `dev/main-beta`. The public menu and table metadata
+remain readable without login. Orders, live data, employees, inventory and table
+visits require the appropriate staff or guest identity. The frontend has login,
+guest entry, live boards and admin forms; see [Beta setup](docs/beta-setup.md).
 
 Sign in with `POST /api/auth/sign-in/email` using `{ "email": "...", "password": "..." }`. Better Auth returns an HTTP-only session cookie. Send that cookie with subsequent API requests. `GET /api/auth/get-session`, `POST /api/auth/change-password`, and `POST /api/auth/sign-out` are also available. Public sign-up is disabled. All business routes require a login; an unauthenticated request gets `401`, while a logged-in user without permission gets `403`.
 
 | Role | Access |
 | --- | --- |
 | `ADMIN` | Full access, including employee CRUD, login activation, and role assignment. The last active admin cannot be deleted or demoted. |
-| `SERVICE` | Read all orders; create and change assigned orders and their items, and unassigned ones such as guests' orders, which they may also claim; update own profile without changing the role; mark any product type `SERVED` or `REMAKE` when its status transition permits it. |
-| `KITCHEN` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `FOOD` and `APPETIZER` items; update own profile without changing the role. |
-| `BAR` | Read all orders; update preparation status (`OPEN`, `IN_PROGRESS`, `READY`) of `DRINK` items; update own profile without changing the role. |
+| `SERVICE` | Read operational orders; create and change assigned or unassigned orders and their items; mark any product type `SERVED` or `REMAKE` when its status transition permits it. |
+| `KITCHEN` | Read relevant open orders with only `FOOD`/`APPETIZER` items; update their preparation status (`OPEN`, `IN_PROGRESS`, `READY`). |
+| `BAR` | Read relevant open orders with only `DRINK` items; update their preparation status (`OPEN`, `IN_PROGRESS`, `READY`). |
 | Guest | No login; seated through the table's QR code (see below). Read the menu; place orders for their own party and add items to its open orders; follow their party live. Guest orders are unassigned: any `SERVICE` employee may serve, take payment for, or claim them. |
 
-All signed-in staff can read tables, products, and ingredients. Only admins can change those resources. Employees can read their own profile; only admins can list all employees. Roles are read from the database for every request, so changes take effect immediately. There is no separate superuser role; the first admin is bootstrapped once and can appoint other admins.
+Products and table metadata are public; inventory is ADMIN-only. Only admins can
+change catalog/table resources or employee profiles. ADMIN and SERVICE can list
+employees for order assignment; all staff can read their own profile. Roles are
+read from the database for every REST request. SSE revalidates its identity every
+minute; the frontend also refreshes on focus, authorization errors and periodically.
+There is no separate superuser role; the first admin can appoint other admins.
 
 #### Guests
 
@@ -582,7 +580,7 @@ same moment on a free table still land in one session.
 | Serve or send back an item | `SERVICE`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE` | `item.status_changed` |
 | Remove an item | the order's employee, `ADMIN` | `DELETE /orders/{id}/items/{itemId}` | `item.deleted` |
 | Claim an unassigned order | `SERVICE` | `PATCH /orders/{id}` with their own `employeeId`. 403 if another employee claimed it first | `order.updated` |
-| Reassign the order | `ADMIN` | `PATCH /orders/{id}` with `employeeId` | `order.updated` |
+| Reassign the order | `ADMIN`, or `SERVICE` for own/unassigned orders | `PATCH /orders/{id}` with `employeeId` | `order.updated` |
 | Take payment | the order's employee, `ADMIN` | `POST /orders/{id}/close`. 409 while any item is not `SERVED` | `order.closed` |
 | Cancel the order | the order's employee, `ADMIN` | `DELETE /orders/{id}` | `order.deleted` |
 
@@ -638,6 +636,7 @@ disconnected can catch up on exactly what it missed. See
 | `session.opened` / `session.moved` / `session.closed` | a party is seated, moves table, or leaves |
 | `order.created` / `order.updated` / `order.closed` / `order.deleted` | an order is placed, reassigned, paid or deleted |
 | `item.created` / `item.status_changed` / `item.deleted` | an item is added later, moves through the kitchen, or is removed |
+| `inventory.updated` | an ingredient or its stock changes; ADMIN only |
 
 Order events carry their items; `order.deleted` accounts for the items deleted
 with it. Item events carry enough of their order — table number included — to be
@@ -693,6 +692,9 @@ Who sees what:
 | `SERVICE`, `ADMIN` | Everything: every open session and all of its orders, paid ones included. |
 | `KITCHEN` | Open orders holding `APPETIZER` or `FOOD` items, with only those items. Item events for those types. Order and move events for orders that hold them. No `session.opened` or `session.closed`. |
 | `BAR` | The same for `DRINK` items. |
+| Guest | Their own table visit, including paid orders until service clears the visit. Employee assignments are redacted. |
+
+Only ADMIN receives inventory in snapshot `ingredients` and `inventory.updated` events.
 
 Kitchen and bar clients should hide orders that have no items. An order stays
 in their state, empty, after its last item for their station is deleted.
@@ -701,7 +703,6 @@ Open a single `EventSource` per browser tab and share it across views. Browsers
 allow about six HTTP/1.1 connections per origin, and every open stream holds
 one. For a guest, `session.closed` ends the stream for good, because the cookie
 stops working with it. Show a goodbye screen, not a reconnect spinner.
-| Guest | Their own table session only. `employeeId` and `employee` are always null. The stream ends after `session.closed`. |
 
 A long-lived stream re-checks its login or guest cookie every minute. It ends
 after sign-out and sends `resync` if the employee's role changed.
@@ -764,6 +765,7 @@ referenced protect their referent:
 | Delete a product | its recipe lines are cascaded away |
 | Delete a product that is on an order | `409 Conflict` |
 | Delete an ingredient used by a product | `409 Conflict` |
+| Delete an ingredient referenced by a stock booking | `409 Conflict`: audit history is retained |
 | Delete an employee who has taken an order | `409 Conflict` |
 
 

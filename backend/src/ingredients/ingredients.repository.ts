@@ -31,12 +31,13 @@ export class IngredientsRepository {
   }
 
   update(id: number, dto: UpdateIngredientDto) {
+    const { name, unit, stock } = dto;
     return this.prisma.ingredient.update({
       where: {
         id,
       },
 
-      data: dto,
+      data: { name, unit, stock },
     });
   }
 

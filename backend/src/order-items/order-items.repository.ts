@@ -80,7 +80,7 @@ export class OrderItemsRepository {
   async updateWhenStatusIs(
     id: number,
     expectedStatus: OrderItemStatus,
-    dto: UpdateOrderItemDto,
+    dto: UpdateOrderItemDto & { preparationStarted?: boolean; remakeCount?: number },
   ): Promise<OrderItemWithDetails | null> {
     const { count } = await this.db.orderItem.updateMany({
       where: {

@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Propagation, TransactionHost, Transactional } from '@nestjs-cls/transactional';
 
-import type { OrderEventType, OrderItemStatus, ProductType } from '@smart-restaurant/contracts';
+import type {
+  Ingredient,
+  OrderEventType,
+  OrderItemStatus,
+  ProductType,
+} from '@smart-restaurant/contracts';
 
 import type { PrismaAdapter } from '../database/transaction.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -50,6 +55,14 @@ export class OrderEventsWriter {
 
   private get db() {
     return this.txHost.tx;
+  }
+
+  inventoryUpdated(ingredientId: number, ingredient: Ingredient | null) {
+    return this.append({
+      type: 'inventory.updated',
+      tableSessionId: 0,
+      data: { ingredientId, ingredient },
+    });
   }
 
   sessionOpened(session: SessionLike) {

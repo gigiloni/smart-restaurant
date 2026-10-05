@@ -1,9 +1,9 @@
 # Mitarbeiteroberfläche, Gastbestellungen und Live-Zustand
 
-Stand: 05.10.2026, Branch `dev/main-beta`. Dieser Katalog beschreibt die nächste
-Implementierung und den dafür geprüften Backend-Stand. Die Admin-, Login- und
-Live-Ansichten sind noch nicht implementiert. Das globale Scrollbar-Styling ist
-bereits in `apps/gastro-ui/src/styles.css` ergänzt.
+Stand: 05.10.2026, Branch `dev/main-beta`. Die beschriebenen Login-, Gast-,
+Mitarbeiter- und Verwaltungsansichten sowie Bestandsbuchungen sind implementiert.
+Das globale Scrollbar-Styling gilt auch für die neuen Formulare und Tabellen.
+T02 (eigene Tisch-Stammdatenverwaltung) bleibt außerhalb dieser ersten Oberfläche.
 
 ## Architektur
 
@@ -50,7 +50,7 @@ Zugriff muss dieselben Rechte für direkte REST-Anfragen und SSE durchsetzen.
 | G02 | Gast                 | Bestellung verbindlich abgeben und anschließend Bestellnummer, Positionen, Summe und Status des eigenen Tischbesuchs sehen. Weitere Bestellungen desselben Besuchs erscheinen ebenfalls. | `POST /api/orders`, `GET /api/live/snapshot` und SSE. Gastdaten sind an die Tischsession gebunden, nicht nur an eine frei eingegebene Tisch-ID.                                                                                                                        |
 | G03 | Gast                 | Tischwechsel live sehen; nach Freigabe des Tisches „Besuch beendet“ anzeigen und den Zugriff auf den nächsten Besuch verhindern.                                                         | `session.moved` und `session.closed`; Gast-Cookie ist nach Session-Schließung ungültig.                                                                                                                                                                                |
 | S01 | SERVICE, ADMIN       | Alle aktiven Tischbesuche und Bestellungen live sehen; nach Tisch und Bestell-/Positionsstatus filtern und Details öffnen.                                                               | Snapshot und SSE liefern alle offenen Tischsessions einschließlich bereits bezahlter Bestellungen in diesen Sessions.                                                                                                                                                  |
-| S02 | SERVICE, ADMIN       | Für einen Tisch eine Bestellung aufnehmen, Positionen hinzufügen/entfernen und eine offene Bestellung einem Mitarbeiter zuordnen beziehungsweise die Zuordnung aufheben.                 | Orders-/Order-Items-REST vorhanden. SERVICE darf unzugeordnete beziehungsweise eigene Bestellungen verändern; ADMIN alle. Diese bestehenden Zugriffsfunktionen müssen wieder angeschlossen werden.                                                                     |
+| S02 | SERVICE, ADMIN       | Für einen Tisch eine Bestellung aufnehmen, Positionen hinzufügen/entfernen und eine offene Bestellung einem Mitarbeiter zuordnen beziehungsweise die Zuordnung aufheben.                 | Orders-/Order-Items-REST vorhanden. SERVICE darf unzugeordnete beziehungsweise eigene Bestellungen verändern; ADMIN alle. Die Zugriffsfunktionen sind innerhalb der gesperrten Bestellung aktiv.                                                                       |
 | S03 | SERVICE, ADMIN       | Fertige Positionen als serviert markieren; bei Reklamation Neuzubereitung anfordern; zulässige Korrekturen anbieten.                                                                     | `PATCH /api/orders/:orderId/items/:id`; Statusfolge plus Rollenrecht bestimmen erlaubte Aktionen.                                                                                                                                                                      |
 | S04 | SERVICE, ADMIN       | Bestellung als bezahlt abschließen; Tischbesuch auf einen freien Tisch verschieben oder nach Bezahlung aller Bestellungen beenden.                                                       | Order-/Table-Session-Endpunkte vorhanden. Bezahlen erst nach `SERVED` für alle Positionen; Freigabe erst nach Schließung aller Bestellungen. Das ist kein Online-Zahlungsanbieter.                                                                                     |
 | S05 | SERVICE, ADMIN       | Offene Bestellung oder einzelne Position stornieren; Konflikte mit inzwischen verändertem Zustand anzeigen.                                                                              | Löschen ist vorhanden; bezahlte Bestellungen bleiben unveränderbar. Rückbuchung erfolgt nur vor begonnener Zubereitung.                                                                                                                                                |
@@ -62,12 +62,12 @@ Zugriff muss dieselben Rechte für direkte REST-Anfragen und SSE durchsetzen.
 | P01 | ADMIN                | Produkte lesen, erstellen und bearbeiten: Name, Beschreibung, Preis, Kategorie und Rezept mit Zutatenmengen.                                                                             | `GET/POST/PATCH /api/products`; Rezept wird bei Übermittlung vollständig ersetzt, jede Zutat darf nur einmal vorkommen. Neue Bilder verwenden vorerst den vorhandenen Platzhalter.                                                                                     |
 | P02 | ADMIN                | Produkt löschen und verständlich anzeigen, wenn Bestellungen es weiterhin referenzieren.                                                                                                 | `DELETE /api/products/:id`; Referenzen verhindern das Löschen. Archivierung und Bild-Upload existieren derzeit nicht.                                                                                                                                                  |
 | I01 | ADMIN                | Zutaten lesen, erstellen, umbenennen und löschen, soweit kein Rezept sie verwendet.                                                                                                      | `GET/POST/PATCH/DELETE /api/ingredients` vorhanden.                                                                                                                                                                                                                    |
-| I02 | ADMIN                | Zutatenbestand und Einheit erfassen, Wareneingang beziehungsweise Korrektur durchführen; aktuellen Bestand anzeigen.                                                                     | Neu nötig: Datenbankfelder, Contracts, Validierung und Backend-Bestandsänderungen. `Ingredient` enthält derzeit nur ID und Name.                                                                                                                                       |
-| I03 | Bestellprozess       | Rezeptmengen pro bestellter Portion vom Bestand abziehen und fehlende Zutaten konsistent behandeln. Storno/Neuzubereitung ändern Bestand nach den bestätigten Regeln.                    | Neu nötig: atomare Backend-Buchungen auch für später hinzugefügte Positionen; parallele Bestellungen und wiederholte Buchungen desselben Vorgangs dürfen keine Doppelbuchung erzeugen. Bestandsregeln sind bestätigt.                                                  |
+| I02 | ADMIN                | Zutatenbestand und Einheit erfassen, Wareneingang beziehungsweise Korrektur durchführen; aktuellen Bestand anzeigen.                                                                     | `Ingredient` enthält Einheit und Bestand; ADMIN ändert den Bestand mit optionaler Prüfung des erwarteten alten Bestands (`expectedStock`).                                                                                                                             |
+| I03 | Bestellprozess       | Rezeptmengen pro bestellter Portion vom Bestand abziehen und fehlende Zutaten konsistent behandeln. Storno/Neuzubereitung ändern Bestand nach den bestätigten Regeln.                    | Atomare Buchungen mit gesperrten Zutaten, Buchungshistorie, Rückbuchung vor Zubereitung und zusätzlichem Verbrauch bei tatsächlicher Neuzubereitung.                                                                                                                   |
 | L01 | Gast und Mitarbeiter | Live-Zustand in allen angemeldeten Ansichten gemeinsam nutzen; Verbindungszustand anzeigen, ohne für jedes Panel eine zusätzliche Verbindung zu öffnen.                                  | Snapshot plus eine `EventSource`-Verbindung pro laufender App/Identität. Berechtigte Daten bleiben durch Backend-Scope begrenzt.                                                                                                                                       |
 | L02 | Gast und Mitarbeiter | Nach Verbindungsabbruch fehlende Änderungen nachholen; bei `resync` frischen Snapshot laden; Rolle/Identität gewechselt: bisherigen Zustand verwerfen und neu verbinden.                 | Cursor, `Last-Event-ID`, `ready`, `resync` und rollenbezogene Filter sind vorhanden. Ausgefilterte Ereignisse können ID-Lücken erzeugen; das Frontend darf daraus keinen Fehler ableiten.                                                                              |
-| L03 | ADMIN                | Änderungen am Bestand auch in anderen geöffneten Verwaltungsansichten zeitnah sehen.                                                                                                     | Der bestehende Stream enthält nur Tischsession-/Bestell-/Positionsereignisse. Für Bestandsereignisse ist eine Erweiterung von Contracts und Backend nötig. Produkt-/Zutaten-Stammdaten haben bislang ebenfalls keine eigenen SSE-Ereignisse.                           |
-| T01 | ADMIN / SERVICE      | Tisch-QR-Inhalt für den Gastzugang abrufen.                                                                                                                                              | `GET /api/tables/:id/qr-code` vorhanden; der bisher deaktivierte Mitarbeiterschutz muss wieder aktiviert werden.                                                                                                                                                       |
+| L03 | ADMIN                | Änderungen am Bestand auch in anderen geöffneten Verwaltungsansichten zeitnah sehen.                                                                                                     | `inventory.updated` liefert Zutaten- und Bestandsänderungen ausschließlich an ADMIN; der Snapshot enthält für ADMIN die aktuellen Zutaten.                                                                                                                             |
+| T01 | ADMIN / SERVICE      | Tisch-QR-Inhalt für den Gastzugang abrufen.                                                                                                                                              | `GET /api/tables/:id/qr-code` ist auf SERVICE/ADMIN begrenzt; die Oberfläche erzeugt einen herunterladbaren QR-Code für den Tischzugang.                                                                                                                               |
 | T02 | ADMIN                | Optional Tische erstellen, Tischnummer/Sitzplätze ändern und unreferenzierte Tische löschen.                                                                                             | Table-CRUD ist vorhanden, aber nicht ausdrücklich als erste Admin-Ansicht beauftragt. Kann nach den Kernansichten ergänzt werden.                                                                                                                                      |
 
 ## Session und Zugriffsschutz
@@ -83,13 +83,18 @@ Logout, Identitätswechsel, Rollenwechsel oder Besuchsende werden berechtigte Da
 und die bisherige Live-Verbindung verworfen. Ein Verbindungsfehler allein wird nicht
 mit einem abgelaufenen Login gleichgesetzt: der Viewer muss geprüft werden.
 
-Aktueller Backend-Stand: `AuthGuard` ist global registriert, erlaubt aber Routen ohne
-`RequireLogin`. Fast alle Controller verwenden diesen Schutz derzeit nicht;
-`employees/me` ist die wesentliche Ausnahme. Bestehende `AccessService`-Prüfungen
-müssen an den Mutationen wieder aufgerufen werden. Auch REST-Lesezugriffe auf
-Bestellungen und Positionen müssen für Gast/Station passend begrenzt werden, damit
-SSE-Filter nicht über einen direkten REST-Aufruf umgangen werden können. Öffentliche
-Speisekarten-Lesezugriffe bleiben möglich.
+`AuthGuard` schützt Mitarbeiter, Zutaten, Tischbesuche, Bestellungen und SSE.
+Rollen werden aus dem Backend bezogen; `AccessService` prüft Besitzer und Statusrechte
+innerhalb der gesperrten Bestellung. REST und SSE begrenzen Gäste auf ihren
+Tischbesuch und Küche/Bar auf die relevanten Positionen. Die Speisekarte und
+Tisch-Stammdaten bleiben öffentlich lesbar; die freie Tischauswahl erteilt keinen
+Gastzugang. Bestandsdaten werden nur an ADMIN geliefert.
+
+Ein QR-Scan eröffnet den Zugang einmalig. Neuladen stellt ihn über das HttpOnly-
+Cookie wieder her. Absenden leert nur den Warenkorb; Bestellungen werden aus der
+Datenbank geladen und bleiben einschließlich „Bezahlt“ bis zum Ende des Tischbesuchs
+sichtbar. Das Gast-Cookie gilt höchstens 12 Stunden und wird durch erneuten Scan
+erneuert. Beim Freigeben des Tischbesuchs endet es sofort.
 
 ## Festgelegte Gast- und Bestandsregeln
 
@@ -131,7 +136,7 @@ Reine Browser-Fixtures reichen nicht, um Backend-RBAC oder Bestand zu bestätige
 
 - `backend/prisma/schema.prisma`: Rollen, Tischsessions, Zutaten und Rezeptmengen.
 - `backend/src/auth/access.service.ts`, `access-metadata.ts`, `auth.guard.ts`:
-  bestehende Rechte und aktuell deaktivierte Anforderungen.
+  aktivierte Rechte und Anforderungen.
 - `backend/src/main.ts`, `auth/auth.service.ts`, `viewer/viewer.controller.ts`:
   vorhandene Login-Endpunkte und Gastzugang.
 - Controller/Services unter `employees`, `products`, `ingredients`, `tables`,

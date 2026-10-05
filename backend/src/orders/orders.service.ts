@@ -12,15 +12,19 @@ import { PrismaErrorCode, isPrismaError } from '../database/prisma-error.js';
 import { Propagation, Transactional } from '@nestjs-cls/transactional';
 
 import type { GuestViewer } from '../auth/viewer.types.js';
+import type { Viewer } from '../auth/viewer.types.js';
+import { stationProductTypes, onlyStationItems, orderForGuest } from '../live/live-scope.js';
 import { RowLocks } from '../database/row-locks.js';
 import { OrderEventsWriter } from '../order-events/order-events.writer.js';
 import { TableSessionsService } from '../table-sessions/table-sessions.service.js';
 import { OrderLock, type OrderChange } from './order-lock.js';
 import { OrdersRepository, type OrderWithDetails } from './orders.repository.js';
+import { StockService } from '../ingredients/stock.service.js';
 
 @Injectable()
 export class OrdersService {
   constructor(
+    private readonly stock: StockService,
     private readonly locks: RowLocks,
     private readonly orderLock: OrderLock,
     private readonly events: OrderEventsWriter,
@@ -30,6 +34,43 @@ export class OrdersService {
 
   findAll(pagination: PaginationQuery): Promise<OrderWithDetails[]> {
     return this.ordersRepository.findAll(pagination);
+  }
+
+  async findVisible(pagination: PaginationQuery, viewer: Viewer) {
+    const station = stationProductTypes(viewer);
+    const where =
+      viewer.kind === 'guest'
+        ? { tableSessionId: viewer.tableSessionId }
+        : station
+          ? {
+              status: 'OPEN' as const,
+              tableSession: { closedAt: null },
+              orderItems: { some: { product: { type: { in: [...station] } } } },
+            }
+          : undefined;
+    const orders = await this.ordersRepository.findAll(pagination, where);
+    return orders.map((order) =>
+      viewer.kind === 'guest'
+        ? orderForGuest(order)
+        : station
+          ? onlyStationItems(order, station)
+          : order,
+    );
+  }
+
+  async findOneVisible(id: number, viewer: Viewer) {
+    const order = await this.findOne(id);
+    if (viewer.kind === 'guest') {
+      if (order.tableSessionId !== viewer.tableSessionId)
+        throw new NotFoundException(`Order ${id} not found`);
+      return orderForGuest(order);
+    }
+    const station = stationProductTypes(viewer);
+    if (!station) return order;
+    const visible = onlyStationItems(order, station);
+    if (order.status !== 'OPEN' || !visible.orderItems.length)
+      throw new NotFoundException(`Order ${id} not found`);
+    return visible;
   }
 
   async findOne(id: number): Promise<OrderWithDetails> {
@@ -144,7 +185,9 @@ export class OrdersService {
       tableId: session.tableId,
     });
 
+    const ingredients = await this.stock.book(created.orderItems);
     await this.events.orderCreated(created);
+    await this.stock.publish(ingredients);
 
     return created;
   }
@@ -203,6 +246,8 @@ export class OrdersService {
   @Transactional()
   async remove(id: number, by: OrderChange = {}): Promise<OrderWithDetails> {
     await this.orderLock.forChange(id, by);
+    const current = await this.findOne(id);
+    const ingredients = await this.stock.refund(current.orderItems);
 
     // The delete returns the order with its items as they were, and the
     // cascade removes those items in the same statement, so this one event
@@ -210,6 +255,7 @@ export class OrdersService {
     const removed = await this.ordersRepository.remove(id);
 
     await this.events.orderDeleted(removed);
+    await this.stock.publish(ingredients);
 
     return removed;
   }

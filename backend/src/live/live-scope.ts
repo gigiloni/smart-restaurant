@@ -23,8 +23,7 @@ export function stationProductTypes(viewer: Viewer | undefined): readonly Produc
 /**
  * The event as this viewer may see it, or null if they may not see it at all.
  *
- * - Anonymous callers, service and admin see everything. (Access control is
- *   off for now: see RequireLogin.)
+ * - Service and admin see all operational orders. Only admin sees inventory.
  * - Kitchen and bar see item events for their product types, and order and
  *   move events for orders holding at least one such item, with the other
  *   items taken out. Opening and clearing tables is none of their business.
@@ -36,6 +35,9 @@ export function scopeEvent(
   logged: LoggedOrderEvent,
 ): OrderEvent | null {
   const { event } = logged;
+  if (!viewer) return null;
+  if (event.type === 'inventory.updated')
+    return viewer.kind === 'staff' && viewer.role === 'ADMIN' ? event : null;
 
   if (viewer?.kind === 'guest') {
     return logged.tableSessionId === viewer.tableSessionId ? withoutEmployee(event) : null;

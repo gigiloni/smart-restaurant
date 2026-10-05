@@ -2,8 +2,8 @@
   <section class="welcome-panel">
     <h1>Trattoria Bellavista</h1>
     <h2>Taste Italy, one bite at a time.</h2>
-    <p>Wählen Sie Ihren Tisch und entdecken Sie unsere Speisekarte.</p>
-    @if (tables.loading()) {
+    <p>Entdecken Sie unsere Speisekarte und bestellen Sie direkt an Ihren Tisch.</p>
+    @if (auth.staff() || auth.guest()) { @if (tables.loading()) {
     <p role="status">Tische werden geladen …</p>
     } @if (tables.error()) {
     <p role="alert">{{ tables.error() }}</p>
@@ -21,7 +21,7 @@
       emptyMessage="Keine Tische verfügbar"
       [checkmark]="true"
       [loading]="tables.loading()"
-      [disabled]="tables.loading() || !!tables.error()"
+      [disabled]="!!auth.guest() || tables.loading() || !!tables.error()"
       appendTo="body"
       styleClass="table-select"
     />
@@ -33,5 +33,13 @@
       Zur Speisekarte
     </button>
     <a routerLink="/speisekarte">Speisekarte ohne Tischauswahl ansehen</a>
+    @if(auth.guest()){<a routerLink="/bestellungen">Meine Bestellungen ansehen</a>} } @else {
+    <p>
+      Scannen Sie zum Bestellen den QR-Code auf Ihrem Tisch. Ihr Zugang und Ihre Bestellübersicht
+      bleiben beim Neuladen erhalten.
+    </p>
+    <a class="primary-button" routerLink="/speisekarte">Speisekarte ansehen →</a>
+    <a routerLink="/gastzugang">Zum Tischzugang</a>
+    }
   </section>
 </main>

@@ -1,5 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { apiError } from './api-error';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { AuthService } from './auth-service';
+import { LiveService } from './live-service';
 import { finalize } from 'rxjs';
 import { CartService } from './cart-service';
 import { priceInCents } from './cart-state';
@@ -18,6 +21,22 @@ export class CheckoutService {
   readonly cart = inject(CartService);
   readonly catalog = inject(ProductService);
   readonly tables = inject(TableService);
+  readonly auth = inject(AuthService);
+  private readonly live = inject(LiveService);
+  constructor() {
+    let identity = '';
+    effect(() => {
+      const viewer = this.auth.viewer();
+      const current =
+        viewer?.kind === 'guest'
+          ? `guest:${viewer.tableSessionId}`
+          : viewer?.kind === 'staff'
+            ? `staff:${viewer.employeeId}:${viewer.role}`
+            : '';
+      if (identity && identity !== current) this.receipt.set(null);
+      identity = current;
+    });
+  }
   private readonly orders = inject(OrderService);
   readonly error = signal('');
   readonly receipt = signal<OrderReceipt | null>(null);
@@ -42,6 +61,7 @@ export class CheckoutService {
       !this.tables.loading() &&
       !this.tables.error() &&
       !!this.tables.selectedTable() &&
+      (!!this.auth.guest() || this.auth.hasRole('ADMIN', 'SERVICE')) &&
       !this.unavailable(),
   );
 
@@ -49,12 +69,13 @@ export class CheckoutService {
     if (!this.canSubmit()) return;
     const table = this.tables.selectedTable();
     if (!table) return;
-    const receiptItems = this.rows().map((row) => ({
-      name: row.product?.name ?? '',
-      quantity: row.quantity,
-      subtotal: row.subtotal,
-    }));
-    const total = this.total();
+    const viewer = this.auth.viewer();
+    const scope =
+      viewer?.kind === 'guest'
+        ? `guest:${viewer.tableSessionId}`
+        : viewer?.kind === 'staff'
+          ? `staff:${viewer.employeeId}:${viewer.role}`
+          : '';
     const items = this.cart
       .lines()
       .flatMap((line) =>
@@ -67,13 +88,34 @@ export class CheckoutService {
       .pipe(finalize(() => this.cart.submitting.set(false)))
       .subscribe({
         next: (order) => {
+          const current = this.auth.viewer();
+          const currentScope =
+            current?.kind === 'guest'
+              ? `guest:${current.tableSessionId}`
+              : current?.kind === 'staff'
+                ? `staff:${current.employeeId}:${current.role}`
+                : '';
+          if (scope !== currentScope) return;
+          // The committed response is authoritative if a price changed during checkout.
+          const receiptItems = new Map<number, OrderReceipt['items'][number]>();
+          for (const item of order.orderItems) {
+            const line = receiptItems.get(item.productId) ?? {
+              name: item.product.name,
+              quantity: 0,
+              subtotal: 0,
+            };
+            line.quantity++;
+            line.subtotal += priceInCents(item.product.price);
+            receiptItems.set(item.productId, line);
+          }
           this.cart.clear();
           this.receipt.set({
             id: order.id,
             tableNumber: order.table.tableNumber,
-            total,
-            items: receiptItems,
+            total: [...receiptItems.values()].reduce((sum, item) => sum + item.subtotal, 0),
+            items: [...receiptItems.values()],
           });
+          this.live.reload();
         },
         error: (error: HttpErrorResponse) => {
           if (error.status === 0 || error.status >= 500)
@@ -86,7 +128,7 @@ export class CheckoutService {
             );
           else
             this.error.set(
-              'Die Bestellung wurde abgelehnt. Bitte Tisch und Speisekarte erneut prüfen. Ihr Warenkorb bleibt erhalten.',
+              apiError(error, 'Die Bestellung wurde abgelehnt. Ihr Warenkorb bleibt erhalten.'),
             );
         },
       });

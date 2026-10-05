@@ -6,6 +6,10 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./order-item-transitions": {
+      "types": "./dist/src/lib/order-items/order-item-transitions.d.ts",
+      "import": "./dist/src/lib/order-items/order-item-transitions.js"
+    },
     ".": {
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js",

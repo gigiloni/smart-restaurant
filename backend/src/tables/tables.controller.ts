@@ -20,6 +20,7 @@ import {
   ApiValidationErrorResponse,
 } from '../swagger/api-docs.decorators.js';
 import { TablesService } from './tables.service.js';
+import { RequireLogin } from '../auth/access-metadata.js';
 
 @ApiTags('Tables')
 @Controller('tables')
@@ -59,6 +60,7 @@ export class TablesController {
   }
 
   @Get(':id/qr-code')
+  @RequireLogin({ roles: ['ADMIN', 'SERVICE'] })
   @ApiOperation({
     summary: "Get a table's QR code content",
     description:
@@ -80,6 +82,7 @@ export class TablesController {
   }
 
   @Post()
+  @RequireLogin({ roles: ['ADMIN'] })
   @ApiOperation({
     summary: 'Create a table',
     description:
@@ -93,6 +96,7 @@ export class TablesController {
   }
 
   @Patch(':id')
+  @RequireLogin({ roles: ['ADMIN'] })
   @ApiOperation({
     summary: 'Update a table',
     description:
@@ -111,6 +115,7 @@ export class TablesController {
   }
 
   @Delete(':id')
+  @RequireLogin({ roles: ['ADMIN'] })
   @ApiOperation({
     summary: 'Delete a table',
     description:

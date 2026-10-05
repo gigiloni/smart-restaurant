@@ -20,6 +20,7 @@ import {
   ApiValidationErrorResponse,
 } from '../swagger/api-docs.decorators.js';
 import { ProductsService } from './products.service.js';
+import { RequireLogin } from '../auth/access-metadata.js';
 
 @ApiTags('Products')
 @Controller('products')
@@ -61,6 +62,7 @@ export class ProductsController {
   }
 
   @Post()
+  @RequireLogin({ roles: ['ADMIN'] })
   @ApiOperation({
     summary: 'Create a product',
     description:
@@ -79,6 +81,7 @@ export class ProductsController {
   }
 
   @Patch(':id')
+  @RequireLogin({ roles: ['ADMIN'] })
   @ApiOperation({
     summary: 'Update a product',
     description:
@@ -102,6 +105,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @RequireLogin({ roles: ['ADMIN'] })
   @ApiOperation({
     summary: 'Delete a product',
     description:
