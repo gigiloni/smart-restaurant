@@ -23,5 +23,5 @@ export const appRoutes: Route[] = [
     path: 'warenkorb',
     title: 'Warenkorb',
     component: Warenkorb,
-  },
+  }
 ];

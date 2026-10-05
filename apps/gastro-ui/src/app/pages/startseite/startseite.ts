@@ -1,14 +1,18 @@
-import {AfterViewInit, Component, inject} from '@angular/core';
-import {TableService} from "../../services/table-service";
-import { Table } from '@smart-restaurant/contracts';
+import { AfterViewInit, Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import {FloatLabel} from "primeng/floatlabel";
-import {Select} from "primeng/select";
-import {FormsModule} from "@angular/forms";
+import { Table } from '@smart-restaurant/contracts';
+import { TableService } from '../../services/table-service';
+import { Select } from 'primeng/select';
+import { FloatLabel } from 'primeng/floatlabel';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-startseite',
-  imports: [FloatLabel, Select, FormsModule,],
+  imports: [
+    Select,
+    FloatLabel,
+    FormsModule,
+  ],
   templateUrl: './startseite.html',
   styleUrl: './startseite.css',
 })
