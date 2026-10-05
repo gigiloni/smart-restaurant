@@ -63,6 +63,10 @@ darzustellen; die gestalterische Grundlage bleibt dieselbe.
 - Mobil gibt es auf der Speisekarte eine kompakte Warenkorbleiste mit Anzahl und
   Summe. Im Warenkorb folgt die Zusammenfassung unter den Artikelkarten.
 - Lade- und Fehlerzustände, Tastaturfokus und reduzierte Bewegung bleiben berücksichtigt.
+- Scrollbars verwenden globale Tokens für Spur und Griff in `src/styles.css`.
+  Das gilt automatisch für die Seite, scrollende Panels, Tabellen und PrimeNG-
+  Dropdowns, auch bei horizontalem Überlauf. Standard-CSS und ein WebKit-Fallback
+  decken verschiedene Browser ab; im Kontrastmodus werden Systemfarben verwendet.
 
 ## Bilder speichern
 
@@ -108,8 +112,8 @@ https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia
 ## Prüfung
 
 Produktionsbuild, Frontend-Lint und fünf Tests mit `pnpm test:frontend` wurden erfolgreich
-ausgeführt. Der initiale Build umfasst 504,91 kB und überschreitet die bestehende
-Warnschwelle von 500 kB um 4,91 kB; die Budget-Grenzen wurden nicht geändert.
+ausgeführt. Der initiale Build umfasst 505,81 kB und überschreitet die bestehende
+Warnschwelle von 500 kB um 5,81 kB; die Budget-Grenzen wurden nicht geändert.
 Die Tests prüfen Warenkorbzustand, Cent-Berechnung sowie Bilder und
 Quellen für alle Seed-Produkte. Zusätzlich wurde das gebaute Frontend in Chrome mit
 lokalen API-Fixtures erfolgreich geprüft: bestehender
@@ -117,5 +121,9 @@ Bestellfluss, Kategorie-Positionen, Fotos, Badge, seitliche Bestätigung, mobile
 Darstellung, PrimeNG-Tischauswahl und entfernte Bildnachweis-Links. Die Maße und Positionen der Kategoriefläche und der
 Seitenleiste bleiben beim Umschalten gleich; es gab keine Browser-Laufzeitfehler.
 Desktop- und Mobil-Screenshots wurden visuell geprüft.
+Das globale Scrollbar-Styling wurde zusätzlich in Chrome an Viewport,
+Speisekarten-Panel, PrimeNG-Dropdown und einem dynamisch eingefügten Container
+mit horizontalem und vertikalem Überlauf geprüft. Scrollen, mobile Breite und
+Systemfarben im Kontrastmodus funktionieren; es gab keine Laufzeitfehler.
 Ein Backend-/PostgreSQL-Durchlauf gehört weiterhin
 zur späteren Integrationsprüfung.
