@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { HttpClient } from '@angular/common/http';
 import { computed, DestroyRef, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import type { LiveSnapshot, OrderEvent, Viewer } from '@smart-restaurant/contracts';
@@ -21,6 +22,13 @@ const EVENTS = [
 
 @Injectable({ providedIn: 'root' })
 export class LiveService {
+  private readonly messages = inject(MessageService);
+  private showError(detail: string): void {
+    const alreadyReported = !!this.error();
+    this.error.set(detail);
+    if (!alreadyReported)
+      this.messages.add({ severity: 'error', summary: 'Verbindung unterbrochen', detail });
+  }
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly state = signal(emptyLiveState());
@@ -51,6 +59,7 @@ export class LiveService {
         this.key = key;
         this.stop();
         this.state.set(emptyLiveState());
+        this.error.set('');
         this.visitEnded.set(previousGuest && !viewer);
         if (viewer) {
           this.visitEnded.set(false);
@@ -83,7 +92,6 @@ export class LiveService {
     this.stop();
     const epoch = this.epoch;
     this.connection.set('loading');
-    this.error.set('');
     void this.load(viewer, epoch);
   }
 
@@ -165,7 +173,7 @@ export class LiveService {
       source.onerror = () => {
         if (epoch !== this.epoch) return;
         this.connection.set('reconnecting');
-        this.error.set('Live-Verbindung unterbrochen. Der zuletzt geladene Stand wird angezeigt.');
+        this.showError('Live-Verbindung unterbrochen. Der zuletzt geladene Stand wird angezeigt.');
         void this.auth
           .refresh()
           .then(() => {
@@ -177,7 +185,7 @@ export class LiveService {
     } catch {
       if (epoch !== this.epoch) return;
       this.connection.set('error');
-      this.error.set('Live-Daten konnten nicht geladen werden. Wir versuchen es erneut.');
+      this.showError('Live-Daten konnten nicht geladen werden. Wir versuchen es erneut.');
       this.scheduleRetry(epoch);
     }
   }

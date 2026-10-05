@@ -1,0 +1,66 @@
+<main class="page auth-page">
+  <section class="form-panel">
+    <span class="eyebrow">Bellavista · Mitarbeiter</span>
+    <h2>Willkommen zurück</h2>
+    <p>Melden Sie sich mit Ihrem Mitarbeiterkonto an.</p>
+    <form (ngSubmit)="submit()" #form="ngForm">
+      <label for="email">E-Mail</label
+      ><input
+        id="email"
+        name="email"
+        type="email"
+        autocomplete="username"
+        [(ngModel)]="email"
+        required
+        email
+        maxlength="254"
+      />
+      <label for="password">Passwort</label>
+      <div class="password-field">
+        <input
+          pPassword
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          [(ngModel)]="password"
+          [feedback]="false"
+          [showPassword]="showPassword()"
+          maxlength="128"
+          required
+        />
+        <button
+          type="button"
+          class="password-toggle secondary"
+          [attr.aria-label]="showPassword() ? 'Passwort verbergen' : 'Passwort anzeigen'"
+          [attr.aria-pressed]="showPassword()"
+          (click)="showPassword.set(!showPassword())"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            aria-hidden="true"
+          >
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+            <circle cx="12" cy="12" r="3" />
+            @if (showPassword()) {
+            <path d="m3 3 18 18" />
+            }
+          </svg>
+        </button>
+      </div>
+      <label class="checkbox-label"
+        ><input name="remember" type="checkbox" [(ngModel)]="remember" /> Angemeldet bleiben</label
+      >
+
+      <button type="submit" [disabled]="form.invalid || busy()">
+        {{ busy() ? 'Anmeldung läuft …' : 'Anmelden' }}
+      </button>
+    </form>
+    <a routerLink="/speisekarte">Zur Speisekarte</a>
+  </section>
+</main>

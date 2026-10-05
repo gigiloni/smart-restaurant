@@ -1,0 +1,24 @@
+<div class="staff-layout">
+  <aside class="staff-sidebar">
+    <span class="eyebrow">Bellavista · Team</span>
+    <h2>{{ auth.employee()?.firstname }}</h2>
+    <p>{{ roles[auth.staff()?.role ?? 'SERVICE'] }}</p>
+    <nav aria-label="Mitarbeiternavigation">
+      <a
+        routerLink="bestellungen"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        >Bestellungen</a
+      >
+      @if (auth.hasRole('ADMIN', 'SERVICE')) {
+      <a routerLink="tische" routerLinkActive="active">Tische</a> } @if (auth.hasRole('ADMIN')) {
+      <a routerLink="personal" routerLinkActive="active">Mitarbeiter</a
+      ><a routerLink="produkte" routerLinkActive="active">Produkte & Rezepte</a
+      ><a routerLink="zutaten" routerLinkActive="active">Zutaten & Bestand</a>
+      }
+      <a routerLink="konto" routerLinkActive="active">Mein Konto</a>
+    </nav>
+    <button type="button" class="secondary" (click)="logout()">Abmelden</button>
+  </aside>
+  <div class="staff-content"><router-outlet /></div>
+</div>

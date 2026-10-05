@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { HttpErrorResponse } from '@angular/common/http';
 import { apiError } from './api-error';
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
@@ -18,6 +19,11 @@ export interface OrderReceipt {
 }
 @Injectable({ providedIn: 'root' })
 export class CheckoutService {
+  private readonly messages = inject(MessageService);
+  private showError(detail: string): void {
+    this.error.set(detail);
+    this.messages.add({ severity: 'error', summary: 'Fehler', detail });
+  }
   readonly cart = inject(CartService);
   readonly catalog = inject(ProductService);
   readonly tables = inject(TableService);
@@ -116,20 +122,22 @@ export class CheckoutService {
             items: [...receiptItems.values()],
           });
           this.live.reload();
+          this.messages.add({
+            severity: 'success',
+            summary: 'Bestellung aufgenommen',
+            detail: `Bestellung #${order.id} für Tisch ${order.table.tableNumber}.`,
+          });
         },
         error: (error: HttpErrorResponse) => {
           if (error.status === 0 || error.status >= 500)
-            this.error.set(
-              'Die Bestellung konnte nicht bestätigt werden. Bitte beim Service nachfragen, ob sie eingegangen ist, bevor Sie erneut bestellen. Ihr Warenkorb bleibt erhalten.',
+            this.showError(
+              'Die Bestellung konnte nicht bestätigt werden. Bitte beim Service nachfragen, ob sie eingegangen ist, bevor Sie erneut bestellen.',
             );
           else if (error.status === 401 || error.status === 403)
-            this.error.set(
-              'Die Bestellung benötigt einen gültigen Tischzugang. Bitte den QR-Code am Tisch scannen oder den Service ansprechen. Ihr Warenkorb bleibt erhalten.',
+            this.showError(
+              'Die Bestellung benötigt einen gültigen Tischzugang. Bitte Ihren Tisch auswählen oder den Service ansprechen.',
             );
-          else
-            this.error.set(
-              apiError(error, 'Die Bestellung wurde abgelehnt. Ihr Warenkorb bleibt erhalten.'),
-            );
+          else this.showError(apiError(error, 'Die Bestellung wurde abgelehnt.'));
         },
       });
   }

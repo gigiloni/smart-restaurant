@@ -99,12 +99,20 @@ INSERT INTO "Ingredient" (ingredient_id, name) VALUES
   (40, 'Sedano'),
   (41, 'Cipolla'),
   (42, 'Pane casereccio'),
-  (43, 'Sale marino');
+  (43, 'Sale marino'),
+  (44, 'Acqua Minerale 0,75L'),
+  (45, 'Chianti Classico'),
+  (46, 'Aperol'),
+  (47, 'Prosecco'),
+  (48, 'Soda'),
+  (49, 'Birra Moretti 0,33L');
 
 -- Demonstration quantities only. Real installations enter measured stock in the admin UI.
 UPDATE "Ingredient" SET stock = 10000;
 UPDATE "Ingredient" SET unit = 'ml' WHERE ingredient_id IN (5, 17, 21, 36);
 UPDATE "Ingredient" SET unit = 'Stück', stock = 100 WHERE ingredient_id IN (9, 13, 14, 31, 42);
+UPDATE "Ingredient" SET unit = 'Stück', stock = 100 WHERE ingredient_id IN (44, 49);
+UPDATE "Ingredient" SET unit = 'ml', stock = 10000 WHERE ingredient_id IN (45, 46, 47, 48);
 
 --
 -- Menu. Covers every ProductType variant: APPETIZER, FOOD, DRINK.
@@ -140,8 +148,8 @@ INSERT INTO "Product" (product_id, name, description, price, type) VALUES
 
 --
 -- Recipes. Product_Ingredient is keyed by (product_id, ingredient_id), so each
--- ingredient appears at most once per product. Drinks other than espresso and
--- limonata carry no recipe.
+-- ingredient appears at most once per product. Bottled drinks consume one unit;
+-- wine and cocktails consume measured millilitres.
 --
 INSERT INTO "Product_Ingredient" (product_id, ingredient_id, amount) VALUES
   -- Bruschetta al Pomodoro
@@ -174,6 +182,10 @@ INSERT INTO "Product_Ingredient" (product_id, ingredient_id, amount) VALUES
   (14, 36, 200), (14, 37, 40), (14, 31, 1),
   -- Espresso
   (19, 34, 7),
+  -- Water, wine, spritz and beer
+  (15, 44, 1), (16, 45, 150),
+  (17, 46, 60), (17, 47, 90), (17, 48, 30),
+  (18, 49, 1),
   -- Limonata
   (20, 31, 2), (20, 37, 20);
 
@@ -273,6 +285,18 @@ WHERE recipe.amount > 0;
 UPDATE "Ingredient" AS ingredient SET stock = stock - used.amount
 FROM (SELECT ingredient_id, SUM(amount)::integer AS amount FROM "Stock_Booking" GROUP BY ingredient_id) AS used
 WHERE ingredient.ingredient_id = used.ingredient_id;
+
+-- Fail the whole seed rather than silently creating unusable inventory.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM "Ingredient" WHERE stock <= 0) THEN
+    RAISE EXCEPTION 'Seed inventory must remain positive after the sample orders';
+  END IF;
+  IF EXISTS (SELECT 1 FROM "Product" p WHERE NOT EXISTS (
+    SELECT 1 FROM "Product_Ingredient" recipe WHERE recipe.product_id = p.product_id
+  )) THEN
+    RAISE EXCEPTION 'Every seed product needs a recipe for stock consumption';
+  END IF;
+END $$;
 
 --
 -- Explicit ids were used above, so the identity sequences have to be moved past

@@ -7,9 +7,16 @@ export const mitarbeiterRoutes: Routes = [
     canActivateChild: [staffGuard],
     loadComponent: () => import('./mitarbeiter').then((m) => m.Mitarbeiter),
     children: [
+      { path: '', redirectTo: 'bestellungen', pathMatch: 'full' },
       {
-        path: '',
-        title: 'Live-Bestellungen | Bellavista',
+        path: 'tische',
+        data: { roles: ['ADMIN', 'SERVICE'] },
+        title: 'Tische | Bellavista',
+        loadComponent: () => import('./tische').then((m) => m.Tische),
+      },
+      {
+        path: 'bestellungen',
+        title: 'Bestellungen | Bellavista',
         loadComponent: () => import('./live-board').then((m) => m.LiveBoard),
       },
       {

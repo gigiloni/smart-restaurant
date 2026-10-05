@@ -1,0 +1,146 @@
+<section>
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">Administration</span>
+      <h1 class="panel-title">Mitarbeiter</h1>
+      <p>Konten und Berechtigungen für das Restaurantteam.</p>
+    </div>
+    <button type="button" (click)="edit()">Mitarbeiter anlegen</button>
+  </div>
+
+  <div class="management-list">
+    <div>
+      <div class="search-field">
+        <label for="staff-search">Mitarbeiter suchen</label
+        ><input id="staff-search" type="search" placeholder="Suchen …" [(ngModel)]="search" />
+      </div>
+      @if (loading()) {
+      <p role="status">Mitarbeiter werden geladen …</p>
+      }
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Rolle</th>
+              <th>Zugang</th>
+              <th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (person of filtered(); track person.id) {
+            <tr>
+              <td>{{ person.firstname }} {{ person.lastname }}</td>
+              <td>{{ roleLabel(person.role) }}</td>
+              <td>{{ person.hasLogin ? 'Login aktiv' : 'Login fehlt' }}</td>
+              <td>
+                <button type="button" class="secondary" (click)="edit(person)">Bearbeiten</button
+                ><button
+                  type="button"
+                  class="secondary"
+                  [disabled]="busy()"
+                  (click)="error.set(''); removeCandidate.set(person)"
+                >
+                  Entfernen
+                </button>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p-dialog
+    [header]="selected ? 'Mitarbeiter bearbeiten' : 'Mitarbeiter anlegen'"
+    [(visible)]="editorOpen"
+    (onHide)="password = ''; error.set('')"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+  >
+    @if (editorOpen) {
+    <form id="staff-editor" class="form-panel" #form="ngForm" (ngSubmit)="save()">
+      <label for="firstname">Vorname</label
+      ><input id="firstname" name="firstname" [(ngModel)]="firstname" required maxlength="100" />
+      <label for="lastname">Nachname</label
+      ><input id="lastname" name="lastname" [(ngModel)]="lastname" required maxlength="100" />
+      <label for="staff-role">Rolle</label
+      ><p-select
+        inputId="staff-role"
+        ariaLabel="Rolle"
+        name="role"
+        [options]="roles"
+        optionLabel="label"
+        optionValue="value"
+        [(ngModel)]="role"
+        appendTo="body"
+      />
+      <p class="muted">{{ roleHelp[role] }}</p>
+      @if (!selected || !selected.hasLogin) {
+      <label for="staff-email">E-Mail für den Login</label
+      ><input
+        id="staff-email"
+        name="email"
+        type="email"
+        [(ngModel)]="email"
+        required
+        email
+        autocomplete="off"
+      />
+      <label for="staff-password">Startpasswort</label
+      ><input
+        id="staff-password"
+        name="password"
+        type="password"
+        [(ngModel)]="password"
+        required
+        minlength="12"
+        maxlength="128"
+        autocomplete="new-password"
+      />
+      <p class="muted">
+        Mindestens 12 Zeichen. Das Teammitglied kann es unter „Mein Konto“ ändern.
+      </p>
+      }
+      <div class="form-actions">
+        <button type="submit" [disabled]="form.invalid || busy()">
+          {{ busy() ? 'Wird gespeichert …' : 'Speichern' }}</button
+        ><button type="button" class="secondary" [disabled]="busy()" (click)="editorOpen = false">
+          Abbrechen
+        </button>
+      </div>
+    </form>
+    }
+  </p-dialog>
+  <p-dialog
+    header="Mitarbeiter entfernen"
+    [visible]="!!removeCandidate()"
+    (visibleChange)="removeCandidate.set(null); error.set('')"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+  >
+    @if (removeCandidate(); as person) {
+    <div class="dialog-confirmation">
+      <p>{{ person.firstname }} {{ person.lastname }} und dessen Login entfernen?</p>
+      <button type="button" [disabled]="busy()" (click)="remove(person)">
+        Entfernen bestätigen</button
+      ><button
+        type="button"
+        class="secondary"
+        [disabled]="busy()"
+        (click)="removeCandidate.set(null); error.set('')"
+      >
+        Abbrechen
+      </button>
+    </div>
+    }
+  </p-dialog>
+</section>

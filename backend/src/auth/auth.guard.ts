@@ -68,7 +68,7 @@ export class AuthGuard implements CanActivate {
     }
 
     throw new UnauthorizedException(
-      requirement.guests ? 'Login or scan the QR code on your table' : 'Login required',
+      requirement.guests ? 'Login or select your table' : 'Login required',
     );
   }
 }

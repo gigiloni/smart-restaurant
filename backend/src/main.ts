@@ -1,4 +1,4 @@
-import { StandardSchemaValidationPipe } from '@nestjs/common';
+import { Logger, StandardSchemaValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { fromNodeHeaders } from 'better-auth/node';
@@ -75,6 +75,7 @@ async function bootstrap(): Promise<void> {
     port,
     host: '0.0.0.0',
   });
+  new Logger('Bootstrap').log(`API ready on port ${port} (/api)`);
 }
 
 await bootstrap();

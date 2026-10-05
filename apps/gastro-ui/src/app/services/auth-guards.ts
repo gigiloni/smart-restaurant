@@ -16,14 +16,3 @@ export const staffGuard: CanActivateFn = async (route, state) => {
   const roles = route.data['roles'] as EmployeeRole[] | undefined;
   return !roles || auth.hasRole(...roles) ? true : router.createUrlTree(['/mitarbeiter']);
 };
-
-export const guestGuard: CanActivateFn = async () => {
-  const auth = inject(AuthService);
-  const router = inject(Router);
-  try {
-    await auth.ensure();
-  } catch {
-    return router.createUrlTree(['/gastzugang']);
-  }
-  return !!auth.guest() || router.createUrlTree(['/gastzugang']);
-};

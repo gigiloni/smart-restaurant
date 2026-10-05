@@ -6,10 +6,11 @@ import { AuthService } from './services/auth-service';
 import { LiveService } from './services/live-service';
 import { RouterModule } from '@angular/router';
 import { Badge } from 'primeng/badge';
+import { ToastModule } from 'primeng/toast';
 import { CartService } from './services/cart-service';
 import { TableService } from './services/table-service';
 @Component({
-  imports: [RouterModule, Badge],
+  imports: [RouterModule, Badge, ToastModule],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.css',

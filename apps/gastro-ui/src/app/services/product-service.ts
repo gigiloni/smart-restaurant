@@ -1,9 +1,15 @@
+import { MessageService } from 'primeng/api';
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { Product } from '@smart-restaurant/contracts';
 import { finalize } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class ProductService {
+  private readonly messages = inject(MessageService);
+  private showError(detail: string): void {
+    this.error.set(detail);
+    this.messages.add({ severity: 'error', summary: 'Fehler', detail });
+  }
   private readonly http = inject(HttpClient);
   readonly products = signal<Product[]>([]);
   readonly loading = signal(false);
@@ -22,7 +28,7 @@ export class ProductService {
           this.loaded = true;
         },
         error: () =>
-          this.error.set('Die Speisekarte konnte nicht geladen werden. Bitte erneut versuchen.'),
+          this.showError('Die Speisekarte konnte nicht geladen werden. Bitte erneut versuchen.'),
       });
   }
 }

@@ -1,0 +1,294 @@
+<section>
+  <div class="page-heading">
+    <div>
+      <span class="eyebrow">Das Restaurant im Blick</span>
+      <h2>{{ title() }}</h2>
+      <p>Bestellungen und Positionsstatus werden live aktualisiert.</p>
+    </div>
+    <div class="filter-toolbar">
+      <div class="search-field">
+        <label for="board-search">Tisch, Bestellung oder Gericht suchen</label
+        ><input
+          id="board-search"
+          type="search"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); tableFilter.set(null)"
+          placeholder="Suchen …"
+        />
+      </div>
+      <div class="filter-field">
+        <label for="board-status">Status</label
+        ><p-select
+          inputId="board-status"
+          ariaLabel="Bestellstatus filtern"
+          [options]="statusOptions()"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event)"
+          appendTo="body"
+        />
+      </div>
+      <div class="filter-field">
+        <label for="board-sort">Bestellungen sortieren</label
+        ><p-select
+          inputId="board-sort"
+          ariaLabel="Bestellungen sortieren"
+          [options]="sortOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="sort()"
+          (ngModelChange)="sort.set($event)"
+          appendTo="body"
+        />
+      </div>
+    </div>
+  </div>
+  @if (live.error()) {
+  <button type="button" class="secondary" (click)="live.reload()">Erneut laden</button>
+  } @if (service()) {
+  <div class="button-row tools-panel">
+    <button type="button" (click)="openNewOrder()">Bestellung aufnehmen</button>
+  </div>
+  }
+  <div class="order-grid">
+    @for (order of filtered(); track order.id) {
+    <article class="order-panel">
+      <header>
+        <div>
+          <span class="eyebrow"
+            >Bestellung #{{ order.id }} · Tisch {{ order.table.tableNumber }}</span
+          >
+          <h3 class="panel-title">
+            {{ order.status === 'CLOSED' ? 'Bezahlt' : 'Offene Bestellung' }}
+          </h3>
+        </div>
+        <strong>{{ total(order) / 100 | currency: 'EUR' }}</strong>
+      </header>
+      @if (service()) {
+      <p class="order-owner">
+        {{ order.employee ? order.employee.firstname + ' ' + order.employee.lastname : 'Noch nicht
+        zugeordnet' }}
+      </p>
+      }
+      <ul class="order-items">
+        @for (item of order.orderItems; track item.id) {
+        <li class="work-item">
+          <div class="work-item-heading">
+            <strong>{{ item.product.name }}</strong
+            ><span class="status-pill" [attr.data-status]="item.status"
+              >{{ labels[item.status] }}</span
+            >
+          </div>
+          @if (order.status === 'OPEN') {
+          <div class="workflow-actions">
+            @for (target of targets(item); track target.status) {
+            <button
+              type="button"
+              class="secondary"
+              [disabled]="busy()"
+              (click)="setStatus(order, item, target.status)"
+            >
+              {{ target.label }}
+            </button>
+            } @if (canManage(order)) {
+            <button
+              type="button"
+              class="quiet-button"
+              [disabled]="busy()"
+              (click)="requestRemoveItem(order, item)"
+            >
+              Position stornieren
+            </button>
+            }
+          </div>
+          }
+        </li>
+        }
+      </ul>
+      @if (canManage(order)) {
+      <div class="button-row order-tools">
+        <button
+          type="button"
+          class="secondary"
+          [disabled]="busy()"
+          (click)="error.set(''); editOrderId.set(order.id)"
+        >
+          Bestellung bearbeiten
+        </button>
+        <button
+          type="button"
+          [disabled]="busy() || !allServed(order)"
+          (click)="requestCloseOrder(order)"
+        >
+          Als bezahlt abschließen
+        </button>
+        <button
+          type="button"
+          class="secondary"
+          [disabled]="busy()"
+          (click)="requestRemoveOrder(order)"
+        >
+          Bestellung stornieren
+        </button>
+      </div>
+      }
+    </article>
+    } @empty {
+    <section class="form-panel">
+      <h3 class="panel-title">Alles im Blick</h3>
+      <p>
+        {{ live.connection() === 'loading' ? 'Bestellungen werden geladen …' : 'Aktuell keine
+        passenden Bestellungen.' }}
+      </p>
+    </section>
+    }
+  </div>
+
+  <p-dialog
+    header="Bestellung aufnehmen"
+    [(visible)]="newOrderOpen"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+    >@if (newOrderOpen) {
+    <form class="form-panel" (ngSubmit)="createOrder()" #newOrder="ngForm">
+      <div class="form-row">
+        <div>
+          <label for="order-table">Tisch</label
+          ><p-select
+            inputId="order-table"
+            ariaLabel="Tisch für neue Bestellung"
+            name="table"
+            [options]="tableOptions()"
+            optionLabel="label"
+            optionValue="id"
+            [(ngModel)]="newTableId"
+            placeholder="Tisch wählen"
+            required
+            appendTo="body"
+          />
+        </div>
+        <div>
+          <label for="order-product">Produkt</label
+          ><p-select
+            inputId="order-product"
+            ariaLabel="Produkt für neue Bestellung"
+            name="product"
+            [options]="catalog.products()"
+            optionLabel="name"
+            optionValue="id"
+            [(ngModel)]="newProductId"
+            placeholder="Produkt wählen"
+            required
+            [filter]="true"
+            appendTo="body"
+          />
+        </div>
+        <div>
+          <label for="order-quantity">Menge</label
+          ><input
+            id="order-quantity"
+            name="quantity"
+            type="number"
+            [(ngModel)]="newQuantity"
+            min="1"
+            max="99"
+            required
+          />
+        </div>
+      </div>
+      <div class="button-row">
+        <button type="submit" [disabled]="newOrder.invalid || busy() || catalog.loading()">
+          Bestellung aufnehmen
+        </button>
+      </div>
+    </form>
+    }</p-dialog
+  >
+  <p-dialog
+    header="Bestellung bearbeiten"
+    [visible]="!!editOrder() && service()"
+    (visibleChange)="editOrderId.set(null)"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+    >@if (editOrder(); as order) { @if (canManage(order)) {
+    <div class="order-tools">
+      <label [for]="'assign-' + order.id">Mitarbeiterzuordnung</label
+      ><p-select
+        [inputId]="'assign-' + order.id"
+        [ariaLabel]="'Mitarbeiter für Bestellung ' + order.id"
+        [options]="employeeOptions()"
+        optionLabel="label"
+        optionValue="id"
+        [ngModel]="order.employeeId"
+        (ngModelChange)="assign(order, $event)"
+        [showClear]="true"
+        placeholder="Nicht zugeordnet"
+        [disabled]="busy()"
+        appendTo="body"
+      />
+      <div class="form-row">
+        <p-select
+          [ariaLabel]="'Produkt zu Bestellung ' + order.id + ' hinzufügen'"
+          [options]="catalog.products()"
+          optionLabel="name"
+          optionValue="id"
+          [(ngModel)]="additions[order.id]"
+          placeholder="Weitere Position"
+          [filter]="true"
+          appendTo="body"
+        /><button
+          type="button"
+          class="secondary"
+          [disabled]="!additions[order.id] || busy()"
+          (click)="addItem(order)"
+        >
+          Hinzufügen
+        </button>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="secondary" [disabled]="busy()" (click)="editOrderId.set(null)">
+        Fertig
+      </button>
+    </div>
+    } }</p-dialog
+  >
+  <p-dialog
+    header="Aktion bestätigen"
+    [visible]="!!pending"
+    (visibleChange)="pending = null; error.set('')"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+    >@if (pending; as action) {
+    <div class="dialog-confirmation">
+      <p>{{ action.label }}</p>
+
+      <div class="form-actions">
+        <button type="button" [disabled]="busy()" (click)="confirm()">Bestätigen</button
+        ><button
+          type="button"
+          class="secondary"
+          [disabled]="busy()"
+          (click)="pending = null; error.set('')"
+        >
+          Abbrechen
+        </button>
+      </div>
+    </div>
+    }</p-dialog
+  >
+</section>

@@ -4,8 +4,8 @@
 
 Before setting up the project, install the following tools:
 
-* [Node.js](https://nodejs.org/) 24 or newer
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker through WSL
+- [Node.js](https://nodejs.org/) 24 or newer
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker through WSL
 
 ## Install pnpm
 
@@ -187,6 +187,11 @@ To run the Nx target directly after generating the Prisma Client:
 pnpm nx serve backend
 ```
 
+`pnpm start:backend` uses a direct incremental TypeScript watcher and skips the
+Nx graph. Run `pnpm db:generate` once after installation and after Prisma
+schema or generator changes. `pnpm dev` starts frontend and backend through Nx.
+Use `pnpm start:backend:nx` for the Nx backend alternative.
+
 Build all projects (including the backend):
 
 ```bash
@@ -263,10 +268,9 @@ From the `backend` directory, the equivalent command is:
 pnpm exec prisma generate
 ```
 
-`pnpm dev`, `pnpm start:backend`, and `pnpm build` generate the client before
-starting or building. After changing `schema.prisma` while the development
-servers are already running, restart `pnpm dev` so the client is regenerated
-and the backend starts with it.
+`pnpm dev` and `pnpm start:backend` use the existing generated client;
+`pnpm build` always generates it. After changing `schema.prisma`, run
+`pnpm db:generate` and restart the development server.
 
 ### Create a migration
 
@@ -449,23 +453,23 @@ references that block a delete with `409`.
 All routes are served under the `/api` prefix and validated against the Zod
 schemas in the `contracts` library.
 
-| Resource | Routes |
-| --- | --- |
-| Tables | `GET` `POST` `/tables` · `GET` `PATCH` `DELETE` `/tables/:id` |
-| Employees | `GET` `POST` `/employees` · `GET` `/employees/me` · `GET` `PATCH` `DELETE` `/employees/:id` · `POST` `/employees/:id/account` |
-| Products | `GET` `POST` `/products` · `GET` `PATCH` `DELETE` `/products/:id` |
-| Ingredients | `GET` `POST` `/ingredients` · `GET` `PATCH` `DELETE` `/ingredients/:id` |
-| Orders | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id` |
-| Order items | `GET` `POST` `/orders/:orderId/items` · `GET` `PATCH` `DELETE` `/orders/:orderId/items/:id` |
+| Resource    | Routes                                                                                                                        |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Tables      | `GET` `POST` `/tables` · `GET` `PATCH` `DELETE` `/tables/:id`                                                                 |
+| Employees   | `GET` `POST` `/employees` · `GET` `/employees/me` · `GET` `PATCH` `DELETE` `/employees/:id` · `POST` `/employees/:id/account` |
+| Products    | `GET` `POST` `/products` · `GET` `PATCH` `DELETE` `/products/:id`                                                             |
+| Ingredients | `GET` `POST` `/ingredients` · `GET` `PATCH` `DELETE` `/ingredients/:id`                                                       |
+| Orders      | `GET` `POST` `/orders` · `GET` `PATCH` `DELETE` `/orders/:id`                                                                 |
+| Order items | `GET` `POST` `/orders/:orderId/items` · `GET` `PATCH` `DELETE` `/orders/:orderId/items/:id`                                   |
 
 ### Paging
 
 `GET /orders` is paged with two optional query parameters:
 
-| Parameter | Meaning | Default |
-| --- | --- | --- |
-| `take` | How many orders to return, capped at 200 | 50 |
-| `skip` | How many orders to skip before the page starts | 0 |
+| Parameter | Meaning                                        | Default |
+| --------- | ---------------------------------------------- | ------- |
+| `take`    | How many orders to return, capped at 200       | 50      |
+| `skip`    | How many orders to skip before the page starts | 0       |
 
 Both may be omitted, so a client that ignores paging still gets the newest 50
 orders. `skip` counts rows rather than pages, so the second page of twenty is
@@ -484,17 +488,18 @@ At most 100 ids are accepted. Unknown ids are left out of the result.
 Access control is enabled on `dev/main-beta`. The public menu and table metadata
 remain readable without login. Orders, live data, employees, inventory and table
 visits require the appropriate staff or guest identity. The frontend has login,
-guest entry, live boards and admin forms; see [Beta setup](docs/beta-setup.md).
+table selection, order views and admin dialogs. Login passwords can be shown or
+hidden; action feedback uses the shared PrimeNG toast service.
 
 Sign in with `POST /api/auth/sign-in/email` using `{ "email": "...", "password": "..." }`. Better Auth returns an HTTP-only session cookie. Send that cookie with subsequent API requests. `GET /api/auth/get-session`, `POST /api/auth/change-password`, and `POST /api/auth/sign-out` are also available. Public sign-up is disabled. All business routes require a login; an unauthenticated request gets `401`, while a logged-in user without permission gets `403`.
 
-| Role | Access |
-| --- | --- |
-| `ADMIN` | Full access, including employee CRUD, login activation, and role assignment. The last active admin cannot be deleted or demoted. |
-| `SERVICE` | Read operational orders; create and change assigned or unassigned orders and their items; mark any product type `SERVED` or `REMAKE` when its status transition permits it. |
-| `KITCHEN` | Read relevant open orders with only `FOOD`/`APPETIZER` items; update their preparation status (`OPEN`, `IN_PROGRESS`, `READY`). |
-| `BAR` | Read relevant open orders with only `DRINK` items; update their preparation status (`OPEN`, `IN_PROGRESS`, `READY`). |
-| Guest | No login; seated through the table's QR code (see below). Read the menu; place orders for their own party and add items to its open orders; follow their party live. Guest orders are unassigned: any `SERVICE` employee may serve, take payment for, or claim them. |
+| Role      | Access                                                                                                                                                                                                                                                               |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADMIN`   | Full access, including employee CRUD, login activation, and role assignment. The last active admin cannot be deleted or demoted.                                                                                                                                     |
+| `SERVICE` | Read operational orders; create and change assigned or unassigned orders and their items; mark any product type `SERVED` or `REMAKE` when its status transition permits it.                                                                                          |
+| `KITCHEN` | Read relevant open orders with only `FOOD`/`APPETIZER` items; update their preparation status (`OPEN`, `IN_PROGRESS`, `READY`).                                                                                                                                      |
+| `BAR`     | Read relevant open orders with only `DRINK` items; update their preparation status (`OPEN`, `IN_PROGRESS`, `READY`).                                                                                                                                                 |
+| Guest     | No login; seated through the table's QR code (see below). Read the menu; place orders for their own party and add items to its open orders; follow their party live. Guest orders are unassigned: any `SERVICE` employee may serve, take payment for, or claim them. |
 
 Products and table metadata are public; inventory is ADMIN-only. Only admins can
 change catalog/table resources or employee profiles. ADMIN and SERVICE can list
@@ -504,6 +509,12 @@ minute; the frontend also refreshes on focus, authorization errors and periodica
 There is no separate superuser role; the first admin can appoint other admins.
 
 #### Guests
+
+The current beta UI hides QR features. Guests select a table on the start page;
+`POST /api/viewer/table` with `{ tableId }` joins or opens its visit and sets the
+same signed HttpOnly guest cookie. Reload and payment preserve the customer's
+order overview; clearing the table ends the visit. The QR API described below
+remains available in the backend for a later UI phase.
 
 Guests have no login. Each table carries a QR code with its `tableId` and a
 `token`; staff with the `SERVICE` or `ADMIN` role read what to print from
@@ -528,11 +539,11 @@ The token and the cookie are HMACs under a key derived from
 Two entities are deliberately not exposed as standalone resources, because
 neither can exist without its parent:
 
-* **`Product_Ingredient`** is written as part of its product. A product payload
+- **`Product_Ingredient`** is written as part of its product. A product payload
   carries an optional `ingredients` array of `{ ingredientId, amount }`. Sending
   `ingredients` on `PATCH /products/:id` replaces the whole recipe; omitting it
   leaves the recipe untouched.
-* **`Order_Item`** is addressed under the order that owns it. Every route is
+- **`Order_Item`** is addressed under the order that owns it. Every route is
   nested below `/orders/:orderId`, and an item that belongs to a different order
   returns `404` rather than being readable through the wrong parent. Items can
   also be created inline via the optional `items` array on `POST /orders`.
@@ -553,13 +564,13 @@ service clears the table. A table is free exactly when no open session names it.
                                            party moves to a free table: session.moved
 ```
 
-| Step | Who | Request | Live event | What the frontend does |
-| --- | --- | --- | --- | --- |
-| Guest scans the QR code | guest | `POST /viewer/guest` with `tableId`, `token`. 201: new party; 200: joined the party already there | `session.opened` on 201 | The `sr_guest` cookie is set; nothing to store. Load the snapshot, open the stream, show the menu (`GET /products`), and let the guest order with `POST /orders`. |
-| Staff seats a party | `SERVICE`, `ADMIN` | `POST /table-sessions` with `tableId`. 201 / 200 as above | `session.opened` on 201 | Show the table as occupied. |
-| First order at a free table | `SERVICE`, `ADMIN` | `POST /orders` | `session.opened`, then `order.created` | Same as seating, then add the order. |
-| Party moves | `SERVICE`, `ADMIN` | `PATCH /table-sessions/{id}` with the free target `tableId`. 409 if it is taken | `session.moved` | Update the session **and every order in it** to the new table. Guests stay connected. |
-| Clear the table | `SERVICE`, `ADMIN` | `POST /table-sessions/{id}/close`. 409 while any order is unpaid | `session.closed` | Staff: drop the session and its orders; the table is free. Guest: the stream ends and the cookie stops working: show a goodbye screen. |
+| Step                        | Who                | Request                                                                                           | Live event                             | What the frontend does                                                                                                                                            |
+| --------------------------- | ------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guest scans the QR code     | guest              | `POST /viewer/guest` with `tableId`, `token`. 201: new party; 200: joined the party already there | `session.opened` on 201                | The `sr_guest` cookie is set; nothing to store. Load the snapshot, open the stream, show the menu (`GET /products`), and let the guest order with `POST /orders`. |
+| Staff seats a party         | `SERVICE`, `ADMIN` | `POST /table-sessions` with `tableId`. 201 / 200 as above                                         | `session.opened` on 201                | Show the table as occupied.                                                                                                                                       |
+| First order at a free table | `SERVICE`, `ADMIN` | `POST /orders`                                                                                    | `session.opened`, then `order.created` | Same as seating, then add the order.                                                                                                                              |
+| Party moves                 | `SERVICE`, `ADMIN` | `PATCH /table-sessions/{id}` with the free target `tableId`. 409 if it is taken                   | `session.moved`                        | Update the session **and every order in it** to the new table. Guests stay connected.                                                                             |
+| Clear the table             | `SERVICE`, `ADMIN` | `POST /table-sessions/{id}/close`. 409 while any order is unpaid                                  | `session.closed`                       | Staff: drop the session and its orders; the table is free. Guest: the stream ends and the cookie stops working: show a goodbye screen.                            |
 
 Seating, paying and clearing are idempotent, so a retried request is safe. Scans that arrive at the
 same moment on a free table still land in one session.
@@ -572,17 +583,17 @@ same moment on a free table still land in one session.
                       └──── DELETE /orders/{id} ────► deleted  (order.deleted)
 ```
 
-| Step | Who | Request | Live event |
-| --- | --- | --- | --- |
-| Place an order | `SERVICE` (assigned to themselves), `ADMIN`, guests (their own party, unassigned, at least one item) | `POST /orders` with `tableId` and optional `items` | `order.created` |
-| Add an item | the order's employee, `ADMIN`, guests (open orders of their own party) | `POST /orders/{id}/items` | `item.created` |
-| Prepare an item | `KITCHEN` for `APPETIZER`/`FOOD`, `BAR` for `DRINK`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `IN_PROGRESS`, `READY` | `item.status_changed` |
-| Serve or send back an item | `SERVICE`, `ADMIN` | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE` | `item.status_changed` |
-| Remove an item | the order's employee, `ADMIN` | `DELETE /orders/{id}/items/{itemId}` | `item.deleted` |
-| Claim an unassigned order | `SERVICE` | `PATCH /orders/{id}` with their own `employeeId`. 403 if another employee claimed it first | `order.updated` |
-| Reassign the order | `ADMIN`, or `SERVICE` for own/unassigned orders | `PATCH /orders/{id}` with `employeeId` | `order.updated` |
-| Take payment | the order's employee, `ADMIN` | `POST /orders/{id}/close`. 409 while any item is not `SERVED` | `order.closed` |
-| Cancel the order | the order's employee, `ADMIN` | `DELETE /orders/{id}` | `order.deleted` |
+| Step                       | Who                                                                                                  | Request                                                                                    | Live event            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------- |
+| Place an order             | `SERVICE` (assigned to themselves), `ADMIN`, guests (their own party, unassigned, at least one item) | `POST /orders` with `tableId` and optional `items`                                         | `order.created`       |
+| Add an item                | the order's employee, `ADMIN`, guests (open orders of their own party)                               | `POST /orders/{id}/items`                                                                  | `item.created`        |
+| Prepare an item            | `KITCHEN` for `APPETIZER`/`FOOD`, `BAR` for `DRINK`, `ADMIN`                                         | `PATCH /orders/{id}/items/{itemId}` to `IN_PROGRESS`, `READY`                              | `item.status_changed` |
+| Serve or send back an item | `SERVICE`, `ADMIN`                                                                                   | `PATCH /orders/{id}/items/{itemId}` to `SERVED`, `REMAKE`                                  | `item.status_changed` |
+| Remove an item             | the order's employee, `ADMIN`                                                                        | `DELETE /orders/{id}/items/{itemId}`                                                       | `item.deleted`        |
+| Claim an unassigned order  | `SERVICE`                                                                                            | `PATCH /orders/{id}` with their own `employeeId`. 403 if another employee claimed it first | `order.updated`       |
+| Reassign the order         | `ADMIN`, or `SERVICE` for own/unassigned orders                                                      | `PATCH /orders/{id}` with `employeeId`                                                     | `order.updated`       |
+| Take payment               | the order's employee, `ADMIN`                                                                        | `POST /orders/{id}/close`. 409 while any item is not `SERVED`                              | `order.closed`        |
+| Cancel the order           | the order's employee, `ADMIN`                                                                        | `DELETE /orders/{id}`                                                                      | `order.deleted`       |
 
 "The order's employee" includes any `SERVICE` employee while the order is unassigned, as every guest
 order is. Guests cannot change item status, remove items, pay or cancel; they ask the staff.
@@ -631,12 +642,12 @@ an **order event**, in the same transaction as the change itself. The event log
 disconnected can catch up on exactly what it missed. See
 [Live updates](#live-updates).
 
-| Event | Written when |
-| --- | --- |
-| `session.opened` / `session.moved` / `session.closed` | a party is seated, moves table, or leaves |
-| `order.created` / `order.updated` / `order.closed` / `order.deleted` | an order is placed, reassigned, paid or deleted |
-| `item.created` / `item.status_changed` / `item.deleted` | an item is added later, moves through the kitchen, or is removed |
-| `inventory.updated` | an ingredient or its stock changes; ADMIN only |
+| Event                                                                | Written when                                                     |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `session.opened` / `session.moved` / `session.closed`                | a party is seated, moves table, or leaves                        |
+| `order.created` / `order.updated` / `order.closed` / `order.deleted` | an order is placed, reassigned, paid or deleted                  |
+| `item.created` / `item.status_changed` / `item.deleted`              | an item is added later, moves through the kitchen, or is removed |
+| `inventory.updated`                                                  | an ingredient or its stock changes; ADMIN only                   |
 
 Order events carry their items; `order.deleted` accounts for the items deleted
 with it. Item events carry enough of their order — table number included — to be
@@ -645,7 +656,7 @@ paid order, re-scanning a QR code) and requests that fail write no event.
 
 Event ids come from a single-row counter rather than a sequence. Bumping it
 takes a row lock held until commit, so ids are handed out in commit order: once
-event *n* is visible, every event before it is too, and the last id a client has
+event _n_ is visible, every event before it is too, and the last id a client has
 applied is a complete cursor. The event shapes live in `contracts`
 (`orderEventSchema`).
 
@@ -655,10 +666,14 @@ Clients stay current in two steps: load a snapshot, then stream every change
 after it over Server-Sent Events.
 
 ```ts
-const snapshot = await fetch('/api/live/snapshot', { credentials: 'include' }).then((r) => r.json());
+const snapshot = await fetch('/api/live/snapshot', { credentials: 'include' }).then((r) =>
+  r.json(),
+);
 render(snapshot.sessions, snapshot.orders);
 
-const events = new EventSource(`/api/live/events?since=${snapshot.cursor}`, { withCredentials: true });
+const events = new EventSource(`/api/live/events?since=${snapshot.cursor}`, {
+  withCredentials: true,
+});
 events.addEventListener('item.status_changed', (e) => apply(JSON.parse(e.data)));
 // ...one listener per event type, or a shared handler
 events.addEventListener('resync', () => {
@@ -687,12 +702,12 @@ events.addEventListener('resync', () => {
 
 Who sees what:
 
-| Viewer | Snapshot and events |
-| --- | --- |
-| `SERVICE`, `ADMIN` | Everything: every open session and all of its orders, paid ones included. |
-| `KITCHEN` | Open orders holding `APPETIZER` or `FOOD` items, with only those items. Item events for those types. Order and move events for orders that hold them. No `session.opened` or `session.closed`. |
-| `BAR` | The same for `DRINK` items. |
-| Guest | Their own table visit, including paid orders until service clears the visit. Employee assignments are redacted. |
+| Viewer             | Snapshot and events                                                                                                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SERVICE`, `ADMIN` | Everything: every open session and all of its orders, paid ones included.                                                                                                                      |
+| `KITCHEN`          | Open orders holding `APPETIZER` or `FOOD` items, with only those items. Item events for those types. Order and move events for orders that hold them. No `session.opened` or `session.closed`. |
+| `BAR`              | The same for `DRINK` items.                                                                                                                                                                    |
+| Guest              | Their own table visit, including paid orders until service clears the visit. Employee assignments are redacted.                                                                                |
 
 Only ADMIN receives inventory in snapshot `ingredients` and `inventory.updated` events.
 
@@ -726,25 +741,25 @@ Not every status may follow every other. `PATCH /orders/{orderId}/items/{id}`
 rejects a move that is not permitted with `409 Conflict`, naming the targets that
 are. Items are always created at `OPEN`.
 
-| Move | Meaning |
-| --- | --- |
-| forward | The next step along the chain. Always permitted. |
-| skip | A forward jump past one or more steps. `DRINK` items only. |
-| undo | Exactly one step back, to correct a mis-tap. Never more than one step. |
-| send-back | `READY` or `SERVED` to `REMAKE`, when an item is rejected. |
-| remake | `REMAKE` to `IN_PROGRESS`, when the kitchen starts the replacement. |
-| keep | `REMAKE` to `SERVED`, when the guest accepts the item after all. |
+| Move      | Meaning                                                                  |
+| --------- | ------------------------------------------------------------------------ |
+| forward   | The next step along the chain. Always permitted.                         |
+| skip      | A forward jump past one or more steps. `DRINK` items only.               |
+| undo      | Exactly one step back, to correct a mis-tap. Never more than one step.   |
+| send-back | `READY` or `SERVED` to `REMAKE`, when an item is rejected.               |
+| remake    | `REMAKE` to `IN_PROGRESS`, when the kitchen starts the replacement.      |
+| keep      | `REMAKE` to `SERVED`, when the guest accepts the item after all.         |
 | unchanged | Re-sending the current status. Accepted as a no-op, so retries are safe. |
 
 Rows are the current status, columns the requested one:
 
-| from / to | OPEN | IN_PROGRESS | READY | SERVED | REMAKE |
-| --- | --- | --- | --- | --- | --- |
-| OPEN | unchanged | forward | skip *(DRINK)* | skip *(DRINK)* | — |
-| IN_PROGRESS | undo | unchanged | forward | skip *(DRINK)* | — |
-| READY | — | undo | unchanged | forward | send-back |
-| SERVED | — | — | undo | unchanged | send-back |
-| REMAKE | — | remake | — | keep | unchanged |
+| from / to   | OPEN      | IN_PROGRESS | READY          | SERVED         | REMAKE    |
+| ----------- | --------- | ----------- | -------------- | -------------- | --------- |
+| OPEN        | unchanged | forward     | skip _(DRINK)_ | skip _(DRINK)_ | —         |
+| IN_PROGRESS | undo      | unchanged   | forward        | skip _(DRINK)_ | —         |
+| READY       | —         | undo        | unchanged      | forward        | send-back |
+| SERVED      | —         | —           | undo           | unchanged      | send-back |
+| REMAKE      | —         | remake      | —              | keep           | unchanged |
 
 Drinks need no preparation, so a `DRINK` item may jump forward to any later
 status. Skipping is one-way: `undo` stays a single step back for every product
@@ -758,18 +773,18 @@ the frontend can grey out impossible moves from the same source the API enforces
 Rows that are owned by a parent are removed with it; rows that are merely
 referenced protect their referent:
 
-| Action | Result |
-| --- | --- |
-| Delete an open order | its order items are cascaded away |
-| Delete or change a closed order | `409 Conflict`: it has been paid |
-| Delete a product | its recipe lines are cascaded away |
-| Delete a product that is on an order | `409 Conflict` |
-| Delete an ingredient used by a product | `409 Conflict` |
+| Action                                             | Result                                    |
+| -------------------------------------------------- | ----------------------------------------- |
+| Delete an open order                               | its order items are cascaded away         |
+| Delete or change a closed order                    | `409 Conflict`: it has been paid          |
+| Delete a product                                   | its recipe lines are cascaded away        |
+| Delete a product that is on an order               | `409 Conflict`                            |
+| Delete an ingredient used by a product             | `409 Conflict`                            |
 | Delete an ingredient referenced by a stock booking | `409 Conflict`: audit history is retained |
-| Delete an employee who has taken an order | `409 Conflict` |
-
+| Delete an employee who has taken an order          | `409 Conflict`                            |
 
 ### Export Git History
+
 ```bash
 git -c core.quotepath=false log --all --since="2026-08-17" --no-merges --reverse --date=short --pretty=format:"%ad | %an | %s" --name-status | Out-File -Encoding utf8 commits.txt
 ```

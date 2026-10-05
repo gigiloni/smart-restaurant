@@ -9,9 +9,11 @@ import {
 
 import {
   enterAsGuestSchema,
+  openTableSessionSchema,
   tableSessionSchema,
   viewerSchema,
   type EnterAsGuestDto,
+  type OpenTableSessionDto,
 } from '@smart-restaurant/contracts';
 
 import { CurrentViewer } from '../auth/current-viewer.decorator.js';
@@ -44,6 +46,25 @@ export class ViewerController {
   @ApiOkResponse({ description: 'The caller, or null.', standardSchema: viewerSchema })
   whoAmI(@CurrentViewer() viewer: Viewer | undefined) {
     return viewer ?? null;
+  }
+
+  @Post('table')
+  @ApiOperation({
+    summary: 'Enter as a guest by selecting a table',
+    description:
+      'Demo entry without a QR code. Joins or opens the selected table visit and sets the signed HttpOnly guest cookie. Orders and live events remain scoped to that visit.',
+  })
+  @ApiOkResponse({ description: 'Joined an existing visit.', standardSchema: tableSessionSchema })
+  @ApiCreatedResponse({ description: 'Opened a new visit.', standardSchema: tableSessionSchema })
+  @ApiValidationErrorResponse('The table id is invalid or the table does not exist.')
+  async selectTable(
+    @Body({ schema: openTableSessionSchema }) dto: OpenTableSessionDto,
+    @Res({ passthrough: true }) reply: GuestReply,
+  ) {
+    const { session, created } = await this.tableSessionsService.openOrJoin(dto.tableId);
+    reply.header('set-cookie', this.guestAccess.cookieFor(session.id));
+    reply.status(created ? 201 : 200);
+    return session;
   }
 
   @Post('guest')

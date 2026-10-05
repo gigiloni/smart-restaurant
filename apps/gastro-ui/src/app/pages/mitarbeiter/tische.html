@@ -1,0 +1,193 @@
+<section>
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">Gastraum</span>
+      <h1 class="panel-title">Tische</h1>
+      <p>Belegung und Bestellungen pro Tisch werden live aktualisiert.</p>
+    </div>
+    @if (auth.hasRole('ADMIN')) { <button type="button" (click)="edit()">Tisch anlegen</button> }
+  </div>
+  <div class="filter-toolbar">
+    <div class="search-field">
+      <label for="table-search">Tisch suchen</label
+      ><input
+        id="table-search"
+        type="search"
+        placeholder="Suchen …"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+      />
+    </div>
+    <div class="filter-field">
+      <label for="table-status">Belegung</label
+      ><p-select
+        inputId="table-status"
+        ariaLabel="Belegung filtern"
+        [options]="statuses"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="status()"
+        (ngModelChange)="status.set($event)"
+        appendTo="body"
+      />
+    </div>
+  </div>
+  @if (live.error() || tables.error()) {
+  <button type="button" (click)="live.reload(); tables.getTables()">Erneut laden</button> }
+  <div class="session-grid">
+    @for (table of filtered(); track table.id) {
+    <article class="session-card">
+      <header>
+        <h2 class="panel-title">Tisch {{ table.tableNumber }}</h2>
+        <span>{{ table.seats }} Plätze</span>
+      </header>
+      @if (sessionFor(table.id); as session) {
+      <span class="status-pill" data-status="IN_PROGRESS"
+        >Belegt · {{ sessionOrders(session.id).length }} Bestellungen</span
+      >
+      <a routerLink="/mitarbeiter/bestellungen" [queryParams]="{ table: table.tableNumber }"
+        >Bestellungen ansehen →</a
+      >
+      <div class="button-row">
+        <button
+          type="button"
+          class="secondary"
+          [disabled]="busy() || !freeTables().length"
+          (click)="requestMove(session)"
+        >
+          Verschieben</button
+        ><button
+          type="button"
+          class="secondary"
+          [disabled]="busy() || !canClear(session) || live.connection() === 'loading'"
+          (click)="requestClear(session)"
+        >
+          Tisch freigeben
+        </button>
+      </div>
+      } @else { <span class="status-pill" data-status="READY">Frei</span> } @if
+      (auth.hasRole('ADMIN')) {
+      <div class="button-row">
+        <button type="button" class="secondary" [disabled]="busy()" (click)="edit(table)">
+          Bearbeiten</button
+        ><button
+          type="button"
+          class="secondary"
+          [disabled]="busy() || !!sessionFor(table.id)"
+          (click)="requestRemove(table)"
+        >
+          Entfernen
+        </button>
+      </div>
+      }
+    </article>
+    } @empty {
+    <p role="status">
+      {{ tables.loading() ? 'Tische werden geladen …' : 'Keine passenden Tische.' }}
+    </p>
+    }
+  </div>
+  <p-dialog
+    [header]="selected ? 'Tisch bearbeiten' : 'Tisch anlegen'"
+    [(visible)]="editorOpen"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+  >
+    @if (editorOpen) {
+    <form class="form-panel" #form="ngForm" (ngSubmit)="save()">
+      <label for="table-number">Tischnummer</label
+      ><input
+        id="table-number"
+        name="number"
+        type="number"
+        [(ngModel)]="tableNumber"
+        required
+        min="1"
+        max="2147483647"
+        step="1"
+      />
+      <label for="table-seats">Sitzplätze</label
+      ><input
+        id="table-seats"
+        name="seats"
+        type="number"
+        [(ngModel)]="seats"
+        required
+        min="0"
+        max="2147483647"
+        step="1"
+      />
+
+      <div class="form-actions">
+        <button type="submit" [disabled]="busy() || form.invalid">Speichern</button
+        ><button type="button" class="secondary" [disabled]="busy()" (click)="editorOpen = false">
+          Abbrechen
+        </button>
+      </div>
+    </form>
+    }
+  </p-dialog>
+  <p-dialog
+    header="Tisch verschieben"
+    [visible]="!!moveCandidate"
+    (visibleChange)="moveCandidate = null"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+  >
+    @if (moveCandidate; as session) {
+    <div class="form-panel">
+      <p>Besuch von Tisch {{ session.table.tableNumber }} auf einen freien Tisch verschieben.</p>
+      <label for="move-target">Zieltisch</label
+      ><p-select
+        inputId="move-target"
+        ariaLabel="Zieltisch"
+        [options]="freeTables()"
+        optionLabel="label"
+        optionValue="id"
+        [(ngModel)]="targetId"
+        placeholder="Freien Tisch auswählen"
+        appendTo="body"
+      />
+
+      <div class="form-actions">
+        <button type="button" [disabled]="busy() || !targetId" (click)="move()">Verschieben</button
+        ><button type="button" class="secondary" [disabled]="busy()" (click)="moveCandidate = null">
+          Abbrechen
+        </button>
+      </div>
+    </div>
+    }
+  </p-dialog>
+  <p-dialog
+    header="Aktion bestätigen"
+    [visible]="!!pending"
+    (visibleChange)="pending = null"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+  >
+    @if (pending; as action) {
+    <div class="dialog-confirmation">
+      <p>{{ action.label }}</p>
+
+      <div class="form-actions">
+        <button type="button" [disabled]="busy()" (click)="confirm()">Bestätigen</button
+        ><button type="button" class="secondary" [disabled]="busy()" (click)="pending = null">
+          Abbrechen
+        </button>
+      </div>
+    </div>
+    }
+  </p-dialog>
+</section>

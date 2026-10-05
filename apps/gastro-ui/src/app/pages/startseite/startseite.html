@@ -3,43 +3,44 @@
     <h1>Trattoria Bellavista</h1>
     <h2>Taste Italy, one bite at a time.</h2>
     <p>Entdecken Sie unsere Speisekarte und bestellen Sie direkt an Ihren Tisch.</p>
-    @if (auth.staff() || auth.guest()) { @if (tables.loading()) {
+    @if (tables.loading()) {
     <p role="status">Tische werden geladen …</p>
     } @if (tables.error()) {
-    <p role="alert">{{ tables.error() }}</p>
-    <button type="button" (click)="tables.getTables()">Erneut versuchen</button> }
+    <button type="button" (click)="tables.getTables()">Erneut versuchen</button>
+    }
     <label id="table-label" for="table">Ihr Tisch</label>
     <p-select
       inputId="table"
-      ariaLabelledBy="table-label"
+      ariaLabel="Ihr Tisch"
       [options]="tableOptions()"
       optionLabel="label"
       optionValue="id"
-      [ngModel]="tables.selectedTable()?.id ?? null"
-      (ngModelChange)="tables.select($event)"
+      [ngModel]="selectedId()"
+      (ngModelChange)="selectedId.set($event)"
       placeholder="Bitte Tisch auswählen"
       emptyMessage="Keine Tische verfügbar"
       [checkmark]="true"
       [loading]="tables.loading()"
-      [disabled]="!!auth.guest() || tables.loading() || !!tables.error()"
+      [disabled]="busy() || tables.loading() || !!tables.error()"
       appendTo="body"
       styleClass="table-select"
     />
+
     <button
       type="button"
-      [disabled]="!tables.selectedTable() || tables.loading() || !!tables.error()"
+      [disabled]="!selectedId() || busy() || tables.loading() || !!tables.error()"
       (click)="continue()"
     >
-      Zur Speisekarte
+      {{ busy() ? 'Tisch wird geöffnet …' : 'Zur Speisekarte' }}
+    </button>
+    <button
+      type="button"
+      class="secondary"
+      [disabled]="!selectedId() || busy() || tables.loading() || !!tables.error()"
+      (click)="continue('/bestellungen')"
+    >
+      Meine Bestellungen ansehen
     </button>
     <a routerLink="/speisekarte">Speisekarte ohne Tischauswahl ansehen</a>
-    @if(auth.guest()){<a routerLink="/bestellungen">Meine Bestellungen ansehen</a>} } @else {
-    <p>
-      Scannen Sie zum Bestellen den QR-Code auf Ihrem Tisch. Ihr Zugang und Ihre Bestellübersicht
-      bleiben beim Neuladen erhalten.
-    </p>
-    <a class="primary-button" routerLink="/speisekarte">Speisekarte ansehen →</a>
-    <a routerLink="/gastzugang">Zum Tischzugang</a>
-    }
   </section>
 </main>

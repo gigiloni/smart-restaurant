@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "noEmitOnError": true,
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/compile.tsbuildinfo"
+  },
+  "references": [{ "path": "../contracts/tsconfig.dev.json" }]
+}

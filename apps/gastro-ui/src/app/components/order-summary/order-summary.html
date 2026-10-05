@@ -37,7 +37,6 @@
   @if (state.catalog.loading()) {
   <p role="status">Aktuelle Preise werden geladen …</p>
   } @else if (state.catalog.error()) {
-  <p role="alert">{{ state.catalog.error() }}</p>
   <button type="button" class="secondary" (click)="state.catalog.load(true)">
     Erneut versuchen
   </button>
@@ -61,17 +60,14 @@
   <div class="summary-total">
     <span>Gesamtsumme</span><strong>{{ state.total() / 100 | currency:'EUR' }}</strong>
   </div>
-  @if (checkout()) { @if (state.error()) {
-  <p class="error-message" role="alert">{{ state.error() }}</p>
-  } @if (state.tables.error()) {
-  <p role="alert">{{ state.tables.error() }}</p>
+  @if (checkout()) { @if (state.tables.error()) {
   <button type="button" class="secondary" (click)="state.tables.getTables()">
     Tische erneut laden
   </button>
   } @if (!state.auth.guest() && !state.auth.hasRole('ADMIN', 'SERVICE')) {
   <p class="summary-note">
-    Zum Bestellen bitte den QR-Code am Tisch scannen. Ihr Warenkorb bleibt erhalten.
-    <a routerLink="/gastzugang">Zum Tischzugang</a>
+    Zum Bestellen bitte Ihren Tisch auswählen.
+    <a routerLink="/startseite">Tisch auswählen</a>
   </p>
   }
   <button

@@ -1,9 +1,15 @@
+import { MessageService } from 'primeng/api';
 import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Table } from '@smart-restaurant/contracts';
 import { finalize } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class TableService {
+  private readonly messages = inject(MessageService);
+  private showError(detail: string): void {
+    this.error.set(detail);
+    this.messages.add({ severity: 'error', summary: 'Fehler', detail });
+  }
   private readonly http = inject(HttpClient);
   readonly tablesList = signal<Table[]>([]);
   readonly selectedTable = signal<Table | null>(null);
@@ -38,7 +44,7 @@ export class TableService {
           this.selectedTable.set(tables.find((table) => table.id === id) ?? null);
         },
         error: () =>
-          this.error.set('Die Tische konnten nicht geladen werden. Bitte erneut versuchen.'),
+          this.showError('Die Tische konnten nicht geladen werden. Bitte erneut versuchen.'),
       });
   }
   select(id: number): void {

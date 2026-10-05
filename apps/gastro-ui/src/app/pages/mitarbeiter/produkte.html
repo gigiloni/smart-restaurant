@@ -1,0 +1,181 @@
+<section>
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">Administration</span>
+      <h1 class="panel-title">Produkte & Rezepte</h1>
+      <p>Speisekarte, Preise und Zutaten pro Portion.</p>
+    </div>
+    <button type="button" (click)="edit()">Produkt anlegen</button>
+  </div>
+
+  <div class="management-list">
+    <div>
+      <div class="search-field">
+        <label for="product-search">Produkt suchen</label
+        ><input id="product-search" type="search" placeholder="Suchen …" [(ngModel)]="search" />
+      </div>
+      @if (catalog.loading()) {
+      <p role="status">Speisekarte wird geladen …</p>
+      } @if (catalog.error()) {
+      <button type="button" (click)="catalog.load(true)">Erneut laden</button>
+      }
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Produkt</th>
+              <th>Kategorie</th>
+              <th>Preis</th>
+              <th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (product of filtered(); track product.id) {
+            <tr>
+              <td>{{ product.name }}</td>
+              <td>{{ typeLabel(product.type) }}</td>
+              <td>{{ product.price | currency: 'EUR' }}</td>
+              <td>
+                <button type="button" class="secondary" (click)="edit(product)">Bearbeiten</button
+                ><button
+                  type="button"
+                  class="secondary"
+                  [disabled]="busy()"
+                  (click)="error.set(''); removeCandidate.set(product)"
+                >
+                  Entfernen
+                </button>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p-dialog
+    [header]="selected ? 'Produkt bearbeiten' : 'Produkt anlegen'"
+    [(visible)]="editorOpen"
+    (onHide)="error.set('')"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+  >
+    @if (editorOpen) {
+    <form id="product-editor" class="form-panel" #form="ngForm" (ngSubmit)="save()">
+      <label for="product-name">Name</label
+      ><input id="product-name" name="name" [(ngModel)]="name" required maxlength="100" />
+      <label for="product-description">Beschreibung</label
+      ><textarea
+        id="product-description"
+        name="description"
+        [(ngModel)]="description"
+        maxlength="100"
+        rows="3"
+      ></textarea>
+      <label for="product-type">Kategorie</label
+      ><p-select
+        inputId="product-type"
+        ariaLabel="Kategorie"
+        name="type"
+        [options]="types"
+        optionLabel="label"
+        optionValue="value"
+        [(ngModel)]="type"
+        appendTo="body"
+      />
+      <label for="product-price">Preis (€)</label
+      ><input
+        id="product-price"
+        name="price"
+        type="number"
+        [(ngModel)]="price"
+        required
+        min="0"
+        step="0.01"
+      />
+      <h3>Rezept pro Portion</h3>
+      <p class="muted">
+        Mengen in der Einheit der jeweiligen Zutat. Diese Mengen werden beim Bestellen gebucht.
+      </p>
+      @for (line of recipe; track $index; let index = $index) {
+      <div class="recipe-row">
+        <p-select
+          [inputId]="'recipe-' + index"
+          [name]="'ingredient-' + index"
+          [options]="ingredientOptions()"
+          optionLabel="label"
+          optionValue="value"
+          [(ngModel)]="line.ingredientId"
+          placeholder="Zutat"
+          appendTo="body"
+          ariaLabel="Zutat"
+          required
+        />
+        <input
+          type="number"
+          [name]="'amount-' + index"
+          [(ngModel)]="line.amount"
+          min="1"
+          step="1"
+          required
+          aria-label="Menge pro Portion"
+        /><button
+          type="button"
+          class="secondary"
+          (click)="recipe.splice(index, 1)"
+          aria-label="Zutat aus Rezept entfernen"
+        >
+          ×
+        </button>
+      </div>
+      }
+      <button
+        type="button"
+        class="secondary"
+        (click)="recipe.push({ ingredientId: null, amount: 1 })"
+      >
+        Zutat hinzufügen
+      </button>
+
+      <div class="form-actions">
+        <button type="submit" [disabled]="form.invalid || busy()">
+          {{ busy() ? 'Wird gespeichert …' : 'Speichern' }}</button
+        ><button type="button" class="secondary" [disabled]="busy()" (click)="editorOpen = false">
+          Abbrechen
+        </button>
+      </div>
+    </form>
+    }
+  </p-dialog>
+  <p-dialog
+    header="Produkt entfernen"
+    [visible]="!!removeCandidate()"
+    (visibleChange)="removeCandidate.set(null); error.set('')"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!busy()"
+    [closeOnEscape]="!busy()"
+    styleClass="editor-dialog"
+  >
+    @if (removeCandidate(); as product) {
+    <div class="dialog-confirmation">
+      <p>„{{ product.name }}“ entfernen? Bereits bestellte Produkte bleiben geschützt.</p>
+      <button type="button" [disabled]="busy()" (click)="remove(product)">
+        Entfernen bestätigen</button
+      ><button
+        type="button"
+        class="secondary"
+        [disabled]="busy()"
+        (click)="removeCandidate.set(null); error.set('')"
+      >
+        Abbrechen
+      </button>
+    </div>
+    }
+  </p-dialog>
+</section>

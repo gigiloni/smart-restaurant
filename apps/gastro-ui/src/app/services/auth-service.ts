@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core';
-import type { Employee, EmployeeRole, EnterAsGuestDto, Viewer } from '@smart-restaurant/contracts';
+import type { Employee, EmployeeRole, Viewer } from '@smart-restaurant/contracts';
 import { firstValueFrom } from 'rxjs';
 import { CartService } from './cart-service';
 import { TableService } from './table-service';
@@ -129,9 +129,9 @@ export class AuthService {
     this.channel?.postMessage('changed');
   }
 
-  async enterGuest(dto: EnterAsGuestDto): Promise<void> {
+  async selectTable(tableId: number): Promise<void> {
     if (this.pending) await this.pending.catch(() => undefined);
-    await firstValueFrom(this.http.post('/api/viewer/guest', dto));
+    await firstValueFrom(this.http.post('/api/viewer/table', { tableId }));
     await this.refresh();
     this.channel?.postMessage('changed');
   }

@@ -1,0 +1,81 @@
+<main class="page">
+  <div class="page-heading">
+    <div>
+      <span class="eyebrow">Ihr Tischbesuch</span>
+      <h2>Meine Bestellungen</h2>
+      @if (live.visitEnded()) {
+      <p>Ihr Tischbesuch ist beendet.</p>
+      }
+    </div>
+    <a class="primary-button" routerLink="/speisekarte">Weitere Speisen auswählen →</a>
+  </div>
+  @if (!auth.guest()) {
+  <section class="form-panel">
+    <h3 class="panel-title">
+      {{ live.visitEnded() ? 'Vielen Dank für Ihren Besuch' : 'Welcher ist Ihr Tisch?' }}
+    </h3>
+    <p>Wählen Sie Ihren Tisch, um Ihre Bestellungen und deren Live-Status zu sehen.</p>
+    <a
+      class="primary-button"
+      [routerLink]="auth.staff() ? '/mitarbeiter/bestellungen' : '/startseite'"
+      >{{ auth.staff() ? 'Zur Mitarbeiterübersicht' : 'Tisch auswählen' }}</a
+    >
+  </section>
+  } @else {
+  <div class="live-indicator" role="status">
+    <span [class.online]="live.connection() === 'connected'"></span>{{ live.connection() ===
+    'connected' ? 'Live verbunden' : 'Live-Verbindung wird hergestellt …' }}
+  </div>
+  @if (live.error()) {
+  <button type="button" class="secondary" (click)="live.reload()">Erneut laden</button>
+  } @if (session(); as session) {
+  <p class="table-label">Tisch {{ session.table.tableNumber }}</p>
+  }
+  <div class="filter-toolbar">
+    <div class="filter-field">
+      <label for="guest-sort">Bestellungen sortieren</label>
+      <p-select
+        inputId="guest-sort"
+        ariaLabel="Bestellungen sortieren"
+        [options]="sortOptions"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="sort()"
+        (ngModelChange)="sort.set($event)"
+        appendTo="body"
+      />
+    </div>
+  </div>
+  <div class="order-grid">
+    @for (order of orders(); track order.id) {
+    <article class="order-panel">
+      <header>
+        <div>
+          <span class="eyebrow">Bestellung #{{ order.id }}</span>
+          <h3 class="panel-title">
+            {{ order.status === 'CLOSED' ? 'Bezahlt' : 'Für Sie in Arbeit' }}
+          </h3>
+        </div>
+        <strong>{{ total(order) / 100 | currency: 'EUR' }}</strong>
+      </header>
+      <ul class="order-items">
+        @for (item of order.orderItems; track item.id) {
+        <li>
+          <span>{{ item.product.name }}</span
+          ><span class="status-pill" [attr.data-status]="item.status"
+            >{{ labels[item.status] }}</span
+          >
+        </li>
+        }
+      </ul>
+    </article>
+    } @empty { @if (live.connection() !== 'loading') {
+    <section class="form-panel">
+      <h3 class="panel-title">Noch keine Bestellung</h3>
+      <p>Nach dem Absenden erscheint Ihre Bestellung hier automatisch.</p>
+      <a routerLink="/speisekarte">Speisekarte öffnen</a>
+    </section>
+    } }
+  </div>
+  }
+</main>

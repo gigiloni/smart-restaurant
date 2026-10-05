@@ -1,74 +1,28 @@
+import { MessageService } from 'primeng/api';
 import { Component, inject, signal } from '@angular/core';
+import { PasswordDirective } from 'primeng/password';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth-service';
 
 @Component({
   selector: 'app-anmelden',
-  imports: [FormsModule, RouterLink],
-  template: `<main class="page auth-page">
-    <section class="form-panel">
-      <span class="eyebrow">Bellavista · Mitarbeiter</span>
-      <h2>Willkommen zurück</h2>
-      <p>Melden Sie sich mit Ihrem Mitarbeiterkonto an.</p>
-      <form (ngSubmit)="submit()" #form="ngForm">
-        <label for="email">E-Mail</label
-        ><input
-          id="email"
-          name="email"
-          type="email"
-          autocomplete="username"
-          [(ngModel)]="email"
-          required
-          email
-          maxlength="254"
-        />
-        <label for="password">Passwort</label
-        ><input
-          id="password"
-          name="password"
-          type="password"
-          autocomplete="current-password"
-          [(ngModel)]="password"
-          required
-          maxlength="128"
-        />
-        <label class="checkbox-label"
-          ><input name="remember" type="checkbox" [(ngModel)]="remember" /> Angemeldet
-          bleiben</label
-        >
-        @if (error()) {
-          <p class="error-message" role="alert">{{ error() }}</p>
-        }
-        <button type="submit" [disabled]="form.invalid || busy()">
-          {{ busy() ? 'Anmeldung läuft …' : 'Anmelden' }}
-        </button>
-      </form>
-      <a routerLink="/speisekarte">Zur Speisekarte</a>
-    </section>
-  </main>`,
-  styles: [
-    `
-      .auth-page {
-        display: grid;
-        place-items: center;
-        min-height: 75svh;
-      }
-      .form-panel {
-        width: min(100%, 480px);
-      }
-      h2 {
-        line-height: 1.2;
-      }
-    `,
-  ],
+  imports: [FormsModule, RouterLink, PasswordDirective],
+  templateUrl: './anmelden.html',
+  styleUrl: './anmelden.css',
 })
 export class Anmelden {
+  private readonly messages = inject(MessageService);
+  private showError(detail: string): void {
+    this.error.set(detail);
+    this.messages.add({ severity: 'error', summary: 'Fehler', detail });
+  }
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   email = '';
   password = '';
+  readonly showPassword = signal(false);
   remember = false;
   readonly busy = signal(false);
   readonly error = signal('');
@@ -84,7 +38,7 @@ export class Anmelden {
         destination?.startsWith('/mitarbeiter') ? destination : '/mitarbeiter',
       );
     } catch {
-      this.error.set('Anmeldung fehlgeschlagen. Bitte Zugangsdaten und Verbindung prüfen.');
+      this.showError('Anmeldung fehlgeschlagen. Bitte Zugangsdaten und Verbindung prüfen.');
     } finally {
       this.busy.set(false);
     }

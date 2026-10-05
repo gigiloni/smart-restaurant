@@ -1,7 +1,6 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { expect, test } from 'vitest';
 import type { Order, OrderEvent, TableSession } from '@smart-restaurant/contracts';
-import { applyLiveEvent, emptyLiveState } from './live-state.ts';
+import { applyLiveEvent, emptyLiveState } from '../src/app/services/live-state.ts';
 
 const table = { id: 1, tableNumber: 1, seats: 2 };
 const session: TableSession = {
@@ -27,14 +26,14 @@ const event = (id: number, type: string, data: unknown) =>
 
 test('SSE duplicate/older events are ignored, scoped cursor gaps are accepted', () => {
   const initial = { ...emptyLiveState(), cursor: 20, orders: [order] };
-  assert.equal(applyLiveEvent(initial, event(20, 'order.deleted', { order })), initial);
+  expect(applyLiveEvent(initial, event(20, 'order.deleted', { order }))).toBe(initial);
   const changed = applyLiveEvent(
     initial,
     event(27, 'order.updated', { order: { ...order, employeeId: 5 } }),
   );
-  assert.equal(changed.cursor, 27);
-  assert.equal(changed.orders[0].employeeId, 5);
-  assert.equal(initial.orders[0].employeeId, null);
+  expect(changed.cursor).toBe(27);
+  expect(changed.orders[0].employeeId).toBe(5);
+  expect(initial.orders[0].employeeId).toBe(null);
 });
 test('moving a visit carries paid and open orders; closing it clears only that visit', () => {
   const initial = {
@@ -53,16 +52,10 @@ test('moving a visit carries paid and open orders; closing it clears only that v
       previousTableId: 1,
     }),
   );
-  assert.deepEqual(
-    moved.orders.map((order) => order.tableId),
-    [2, 2, 1],
-  );
+  expect(moved.orders.map((order) => order.tableId)).toEqual([2, 2, 1]);
   const closed = applyLiveEvent(moved, event(2, 'session.closed', { session }));
-  assert.deepEqual(
-    closed.orders.map((order) => order.id),
-    [5],
-  );
-  assert.equal(closed.sessions.length, 0);
+  expect(closed.orders.map((order) => order.id)).toEqual([5]);
+  expect(closed.sessions.length).toBe(0);
 });
 test('a new station item without a known order requests a fresh snapshot', () => {
   const item = {
@@ -80,8 +73,8 @@ test('a new station item without a known order requests a fresh snapshot', () =>
     }),
     'KITCHEN',
   );
-  assert.equal(next.needsSnapshot, true);
-  assert.equal(next.orders.length, 0);
+  expect(next.needsSnapshot).toBe(true);
+  expect(next.orders.length).toBe(0);
 });
 test('station removes paid tickets while guest keeps them', () => {
   const item = {
@@ -99,8 +92,8 @@ test('station removes paid tickets while guest keeps them', () => {
   const closed = event(1, 'order.closed', {
     order: { ...order, orderItems: [item], status: 'CLOSED' },
   });
-  assert.equal(applyLiveEvent(initial, closed, 'KITCHEN').orders.length, 0);
-  assert.equal(applyLiveEvent(initial, closed).orders.length, 1);
+  expect(applyLiveEvent(initial, closed, 'KITCHEN').orders.length).toBe(0);
+  expect(applyLiveEvent(initial, closed).orders.length).toBe(1);
 });
 test('inventory changes use the same stream without discarding open orders', () => {
   const initial = { ...emptyLiveState(), orders: [order] };
@@ -111,11 +104,10 @@ test('inventory changes use the same stream without discarding open orders', () 
       ingredient: { id: 7, name: 'Flour', unit: 'g', stock: 500 },
     }),
   );
-  assert.equal(changed.ingredients?.[0].stock, 500);
-  assert.equal(changed.orders.length, 1);
-  assert.equal(
+  expect(changed.ingredients?.[0].stock).toBe(500);
+  expect(changed.orders.length).toBe(1);
+  expect(
     applyLiveEvent(changed, event(2, 'inventory.updated', { ingredientId: 7, ingredient: null }))
       .ingredients?.length,
-    0,
-  );
+  ).toBe(0);
 });

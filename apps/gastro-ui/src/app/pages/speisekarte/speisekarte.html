@@ -13,7 +13,6 @@
       <div class="stage-message" role="status">Speisekarte wird geladen …</div>
       } @else if (catalog.error()) {
       <div class="stage-message">
-        <p role="alert">{{ catalog.error() }}</p>
         <button type="button" (click)="catalog.load(true)">Erneut versuchen</button>
       </div>
       } @else {

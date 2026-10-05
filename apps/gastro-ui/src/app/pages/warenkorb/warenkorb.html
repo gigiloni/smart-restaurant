@@ -12,9 +12,7 @@
       @if (state.catalog.loading()) {
       <p class="state-message" role="status">Aktuelle Produkte und Preise werden geladen …</p>
       } @else if (state.catalog.error()) {
-      <p class="state-message">
-        Der Warenkorb bleibt erhalten, während die Speisekarte erneut geladen wird.
-      </p>
+      <p class="state-message">Die Speisekarte ist derzeit nicht verfügbar.</p>
       } @if (!state.cart.count()) { @if (state.receipt()) {
       <div class="cart-empty">
         <span class="empty-illustration success" aria-hidden="true">✓</span>
