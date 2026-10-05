@@ -23,3 +23,7 @@
 .welcome-panel h2 {
   line-height: 1.3;
 }
+.welcome-panel p-select {
+  width: 100%;
+  font-family: var(--font-ui);
+}

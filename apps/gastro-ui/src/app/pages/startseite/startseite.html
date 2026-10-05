@@ -8,18 +8,23 @@
     } @if (tables.error()) {
     <p role="alert">{{ tables.error() }}</p>
     <button type="button" (click)="tables.getTables()">Erneut versuchen</button> }
-    <label for="table">Ihr Tisch</label>
-    <select
-      id="table"
-      [value]="tables.selectedTable()?.id ?? ''"
-      (change)="selectTable($event)"
+    <label id="table-label" for="table">Ihr Tisch</label>
+    <p-select
+      inputId="table"
+      ariaLabelledBy="table-label"
+      [options]="tableOptions()"
+      optionLabel="label"
+      optionValue="id"
+      [ngModel]="tables.selectedTable()?.id ?? null"
+      (ngModelChange)="tables.select($event)"
+      placeholder="Bitte Tisch auswählen"
+      emptyMessage="Keine Tische verfügbar"
+      [checkmark]="true"
+      [loading]="tables.loading()"
       [disabled]="tables.loading() || !!tables.error()"
-    >
-      <option value="">Bitte Tisch auswählen</option>
-      @for (table of tables.tablesList(); track table.id) {
-      <option [value]="table.id">Tisch {{ table.tableNumber }}</option>
-      }
-    </select>
+      appendTo="body"
+      styleClass="table-select"
+    />
     <button
       type="button"
       [disabled]="!tables.selectedTable() || tables.loading() || !!tables.error()"

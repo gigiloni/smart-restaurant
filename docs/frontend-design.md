@@ -14,7 +14,7 @@ Produktnamen zugeordnet; die Warenkorbansicht enthielt außerdem feste Zutaten.
 Die erste Beta ergänzte funktionsfähige Layouts und einige direkt eingetragene
 Farben. Die jetzige Überarbeitung ersetzt diese zusätzlichen Farben durch Tokens.
 
-Unverändert erhalten:
+Beibehaltene Grundlagen:
 
 | Token / Grundlage              | Wert                                 |
 | ------------------------------ | ------------------------------------ |
@@ -25,7 +25,7 @@ Unverändert erhalten:
 | `--text`                       | `#FFFFFF`                            |
 | Überschriften / Marken-Schrift | Cormorant Infant / Passions Conflict |
 | Marke                          | Bestehende `Logo.svg` und `hero.jpg` |
-| PrimeNG-Preset                 | `GastroTheme` auf Aura, unverändert  |
+| PrimeNG-Preset                 | `GastroTheme` auf Aura               |
 
 Die gleichen Schriften werden jetzt als lokale WOFF2-Dateien unter `public/fonts`
 ausgeliefert. Es sind die bisherigen Familien und Gewichtungen; ihre SIL-OFL-Lizenzen
@@ -48,6 +48,12 @@ darzustellen; die gestalterische Grundlage bleibt dieselbe.
   dieser Fläche, sodass Kategorien mit unterschiedlich vielen Produkten die Tabs und
   die seitliche Zusammenfassung nicht verschieben. Die Karten verwenden dieselben
   Rasterbreiten und Bildproportionen.
+- Die drei Tabs sind gleich breit und mittig beschriftet. Die aktive Kategorie
+  verwendet den bestehenden roten Akzent als Hintergrund.
+- Die Tischauswahl verwendet PrimeNG Select mit Tastaturbedienung, Ladezustand
+  und einem Dropdown im bestehenden dunklen Design. Das `GastroTheme` ergänzt
+  dafür Select-Tokens aus den vorhandenen CSS-Variablen. Als Wert wird die
+  Datenbank-ID gespeichert; angezeigt wird weiterhin die Tischnummer.
 - Rechts steht auf Desktop eine Bestellzusammenfassung mit Positionen, Summen und
   Tisch. Auf der Speisekarte führt sie zur Prüfung im Warenkorb; dort wird die
   Bestellung verbindlich abgeschickt.
@@ -86,8 +92,9 @@ falls sie für dessen Nutzer einen konkreten Zweck erfüllen.
 
 Die neuen Fotos stammen von Wikimedia Commons. Ihre einzelnen Lizenzen, Urheber,
 Originalseiten und Download-Adressen stehen in
-`apps/gastro-ui/public/dishes/image-credits.json`. Die Seite `/bildnachweise` zeigt
-diese Angaben samt Lizenzlinks. Es wurden CC BY, CC BY-SA, CC0 und als Public Domain
+`apps/gastro-ui/public/dishes/image-credits.json`. Eine eigene Seite und Links
+innerhalb der Oberfläche wurden auf Wunsch entfernt; die Quellen-Datei bleibt
+als Asset unter `/dishes/image-credits.json` verfügbar. Es wurden CC BY, CC BY-SA, CC0 und als Public Domain
 ausgewiesene Fotos ausgewählt. Die Bilddateien behalten die jeweilige Lizenz;
 Vorschaubilder und der Ausschnitt bei der Darstellung sind vermerkt. Die übrige
 Anwendung wird dadurch nicht unter die Bildlizenz gestellt.
@@ -101,11 +108,13 @@ https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia
 ## Prüfung
 
 Produktionsbuild, Frontend-Lint und fünf Tests mit `pnpm test:frontend` wurden erfolgreich
-ausgeführt. Die Tests prüfen Warenkorbzustand, Cent-Berechnung sowie Bilder und
+ausgeführt. Der initiale Build umfasst 504,91 kB und überschreitet die bestehende
+Warnschwelle von 500 kB um 4,91 kB; die Budget-Grenzen wurden nicht geändert.
+Die Tests prüfen Warenkorbzustand, Cent-Berechnung sowie Bilder und
 Quellen für alle Seed-Produkte. Zusätzlich wurde das gebaute Frontend in Chrome mit
 lokalen API-Fixtures erfolgreich geprüft: bestehender
 Bestellfluss, Kategorie-Positionen, Fotos, Badge, seitliche Bestätigung, mobile
-Darstellung und Bildnachweise. Die Maße und Positionen der Kategoriefläche und der
+Darstellung, PrimeNG-Tischauswahl und entfernte Bildnachweis-Links. Die Maße und Positionen der Kategoriefläche und der
 Seitenleiste bleiben beim Umschalten gleich; es gab keine Browser-Laufzeitfehler.
 Desktop- und Mobil-Screenshots wurden visuell geprüft.
 Ein Backend-/PostgreSQL-Durchlauf gehört weiterhin
