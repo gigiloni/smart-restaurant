@@ -1,13 +1,13 @@
+import { PasswordToggle } from '../../components/password-toggle/password-toggle';
 import { MessageService } from 'primeng/api';
 import { Component, inject, signal } from '@angular/core';
-import { PasswordDirective } from 'primeng/password';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth-service';
 
 @Component({
   selector: 'app-anmelden',
-  imports: [FormsModule, RouterLink, PasswordDirective],
+  imports: [PasswordToggle, FormsModule, RouterLink],
   templateUrl: './anmelden.html',
   styleUrl: './anmelden.css',
 })
@@ -22,7 +22,6 @@ export class Anmelden {
   private readonly route = inject(ActivatedRoute);
   email = '';
   password = '';
-  readonly showPassword = signal(false);
   remember = false;
   readonly busy = signal(false);
   readonly error = signal('');

@@ -21,8 +21,7 @@
       >{{ auth.staff() ? 'Zur Mitarbeiterübersicht' : 'Tisch auswählen' }}</a
     >
   </section>
-  } @else {
-  @if (live.error()) {
+  } @else { @if (live.error()) {
   <button type="button" class="secondary" (click)="live.reload()">Erneut laden</button>
   } @if (session(); as session) {
   <p class="table-label">Tisch {{ session.table.tableNumber }}</p>

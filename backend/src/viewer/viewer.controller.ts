@@ -60,9 +60,13 @@ export class ViewerController {
   async selectTable(
     @Body({ schema: openTableSessionSchema }) dto: OpenTableSessionDto,
     @Res({ passthrough: true }) reply: GuestReply,
+    @CurrentViewer() viewer: Viewer | undefined,
   ) {
     const { session, created } = await this.tableSessionsService.openOrJoin(dto.tableId);
-    reply.header('set-cookie', this.guestAccess.cookieFor(session.id));
+    reply.header(
+      'set-cookie',
+      this.guestAccess.cookieFor(session.id, viewer?.kind === 'guest' ? viewer : undefined),
+    );
     reply.status(created ? 201 : 200);
     return session;
   }
@@ -89,6 +93,7 @@ export class ViewerController {
   async enterAsGuest(
     @Body({ schema: enterAsGuestSchema }) dto: EnterAsGuestDto,
     @Res({ passthrough: true }) reply: GuestReply,
+    @CurrentViewer() viewer: Viewer | undefined,
   ) {
     if (!this.guestAccess.verifyTableToken(dto.tableId, dto.token)) {
       throw new ForbiddenException(`This QR code is not valid for table ${dto.tableId}`);
@@ -96,7 +101,10 @@ export class ViewerController {
 
     const { session, created } = await this.tableSessionsService.openOrJoin(dto.tableId);
 
-    reply.header('set-cookie', this.guestAccess.cookieFor(session.id));
+    reply.header(
+      'set-cookie',
+      this.guestAccess.cookieFor(session.id, viewer?.kind === 'guest' ? viewer : undefined),
+    );
     reply.status(created ? 201 : 200);
 
     return session;

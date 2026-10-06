@@ -10,11 +10,14 @@ import type {
 
 import type { PrismaAdapter } from '../database/transaction.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import type { AuthenticatedEmployee } from '../auth/auth.types.js';
 
 /** The channel the live feed listens on. Notifications are only sent on commit. */
 export const ORDER_EVENTS_CHANNEL = 'order_events';
 
 interface DraftOrderEvent {
+  guestId?: string | null;
+  statusChange?: { actor: AuthenticatedEmployee; previousStatus: string; status: string };
   type: OrderEventType;
   tableSessionId: number;
   orderId?: number;
@@ -29,12 +32,14 @@ interface SessionLike {
 }
 
 interface OrderLike {
+  guestId?: string | null;
   id: number;
   tableSessionId: number;
   orderItems: { product: { type: ProductType } }[];
 }
 
 interface ItemLike {
+  status?: OrderItemStatus;
   id: number;
   orderId: number;
   product: { type: ProductType };
@@ -98,8 +103,13 @@ export class OrderEventsWriter {
     return this.appendOrder('order.updated', order);
   }
 
-  orderClosed(order: OrderLike) {
-    return this.appendOrder('order.closed', order);
+  orderClosed(order: OrderLike, actor?: AuthenticatedEmployee) {
+    if (!actor) throw new Error('A status change requires an authenticated employee');
+    return this.appendOrder('order.closed', order, {
+      actor,
+      previousStatus: 'OPEN',
+      status: 'CLOSED',
+    });
   }
 
   /** `order` is the order as it was immediately before deletion, items included. */
@@ -111,8 +121,18 @@ export class OrderEventsWriter {
     return this.appendItem('item.created', item);
   }
 
-  itemStatusChanged(item: ItemLike, previousStatus: OrderItemStatus) {
-    return this.appendItem('item.status_changed', item, { previousStatus });
+  itemStatusChanged(item: ItemLike, previousStatus: OrderItemStatus, actor: AuthenticatedEmployee) {
+    if (!item.status) throw new Error('A status change requires the new status');
+    return this.appendItem(
+      'item.status_changed',
+      item,
+      { previousStatus },
+      {
+        actor,
+        previousStatus,
+        status: item.status,
+      },
+    );
   }
 
   /** `item` is the item as it was immediately before deletion. */
@@ -120,11 +140,17 @@ export class OrderEventsWriter {
     return this.appendItem('item.deleted', item);
   }
 
-  private appendOrder(type: OrderEventType, order: OrderLike) {
+  private appendOrder(
+    type: OrderEventType,
+    order: OrderLike,
+    statusChange?: DraftOrderEvent['statusChange'],
+  ) {
     return this.append({
       type,
       tableSessionId: order.tableSessionId,
       orderId: order.id,
+      guestId: order.guestId,
+      statusChange,
       productTypes: distinct(order.orderItems.map((item) => item.product.type)),
       data: { order },
     });
@@ -134,12 +160,14 @@ export class OrderEventsWriter {
     type: OrderEventType,
     item: ItemLike,
     extra: Record<string, unknown> = {},
+    statusChange?: DraftOrderEvent['statusChange'],
   ) {
     const order = await this.db.order.findUniqueOrThrow({
       where: { id: item.orderId },
       select: {
         id: true,
         tableSessionId: true,
+        guestId: true,
         tableId: true,
         status: true,
         table: { select: { tableNumber: true } },
@@ -150,6 +178,8 @@ export class OrderEventsWriter {
       type,
       tableSessionId: order.tableSessionId,
       orderId: order.id,
+      guestId: order.guestId,
+      statusChange,
       orderItemId: item.id,
       productType: item.product.type,
       data: {
@@ -184,6 +214,7 @@ export class OrderEventsWriter {
         tableSessionId: event.tableSessionId,
         orderId: event.orderId,
         orderItemId: event.orderItemId,
+        guestId: event.guestId,
         productType: event.productType,
         productTypes: event.productTypes ?? [],
         // Round-trip through JSON so the stored payload is exactly what the
@@ -192,6 +223,22 @@ export class OrderEventsWriter {
         payload: JSON.parse(JSON.stringify(event.data)) as Prisma.InputJsonValue,
       },
     });
+
+    if (event.statusChange) {
+      if (event.orderId === undefined) throw new Error('A status audit requires an order');
+      const { actor, previousStatus, status } = event.statusChange;
+      await this.db.orderStatusLog.create({
+        data: {
+          eventId: id,
+          employeeId: actor.id,
+          employeeRole: actor.role,
+          orderId: event.orderId,
+          orderItemId: event.orderItemId,
+          previousStatus,
+          status,
+        },
+      });
+    }
 
     // Delivered only if the transaction commits, and in commit order. The
     // payload is constant so several events in one transaction collapse into a

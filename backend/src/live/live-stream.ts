@@ -185,7 +185,7 @@ function sameScope(a: Viewer, b: Viewer): boolean {
   }
 
   if (a.kind === 'guest' && b.kind === 'guest') {
-    return a.tableSessionId === b.tableSessionId;
+    return a.tableSessionId === b.tableSessionId && a.guestId === b.guestId;
   }
 
   return false;

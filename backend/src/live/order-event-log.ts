@@ -11,6 +11,17 @@ import type { PrismaAdapter } from '../database/transaction.js';
  * routing fields never leave the server.
  */
 export interface LoggedOrderEvent {
+  guestId: string | null;
+  statusLog: {
+    id: number;
+    occurredAt: Date;
+    employeeId: number;
+    employeeRole: string;
+    orderId: number;
+    orderItemId: number | null;
+    previousStatus: string;
+    status: string;
+  } | null;
   event: OrderEvent;
   tableSessionId: number;
   productType: ProductType | null;
@@ -54,6 +65,7 @@ export class OrderEventLog {
   /** Up to `LOG_PAGE_SIZE` committed events after `cursor`, oldest first. */
   async after(cursor: number): Promise<LoggedOrderEvent[]> {
     const rows = await this.db.orderEvent.findMany({
+      include: { statusLog: true },
       where: { id: { gt: cursor } },
       orderBy: { id: 'asc' },
       take: LOG_PAGE_SIZE,
@@ -67,6 +79,8 @@ export class OrderEventLog {
         data: row.payload,
       } as OrderEvent,
       tableSessionId: row.tableSessionId,
+      guestId: row.guestId,
+      statusLog: row.statusLog,
       productType: row.productType,
       productTypes: row.productTypes,
     }));

@@ -171,6 +171,7 @@ model TableSession {
 }
 
 model Order {
+  guestId        String?     @map("guest_id") @db.Uuid
   id             Int         @id @default(autoincrement()) @map("order_id")
   tableSessionId Int         @map("table_session_id")
   tableId        Int         @map("table_id")
@@ -186,6 +187,7 @@ model Order {
   orderItems   OrderItem[]
 
   @@index([tableSessionId])
+  @@index([tableSessionId, guestId])
   @@map("Order")
 }
 
@@ -247,6 +249,8 @@ model ProductIngredient {
 /// may see; there is deliberately no foreign key, because events outlive the
 /// rows they describe.
 model OrderEvent {
+  guestId        String?       @map("guest_id") @db.Uuid
+  statusLog      OrderStatusLog?
   id             BigInt        @id @map("order_event_id")
   type           String        @db.VarChar(40)
   occurredAt     DateTime      @default(now()) @map("occurred_at")
@@ -272,4 +276,21 @@ model OrderEventCounter {
   value BigInt @default(0)
 
   @@map("Order_Event_Counter")
+}
+
+/// Durable audit history. No employee/order FK: deletion must preserve evidence.
+model OrderStatusLog {
+  id             Int       @id @default(autoincrement())
+  eventId        BigInt?   @unique @map("event_id")
+  event          OrderEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  occurredAt     DateTime  @default(now()) @map("occurred_at")
+  employeeId     Int       @map("employee_id")
+  employeeRole   EmployeeRole @map("employee_role")
+  orderId        Int       @map("order_id")
+  orderItemId    Int?      @map("order_item_id")
+  previousStatus String   @map("previous_status")
+  status         String
+
+  @@index([orderId, occurredAt])
+  @@map("Order_Status_Log")
 }

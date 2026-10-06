@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -15,7 +15,8 @@ const GUEST_COOKIE_MAX_AGE_SECONDS = 12 * 60 * 60;
  *
  * A table's QR code carries a token that proves the holder is at that table.
  * Presenting it joins the table's session and sets a cookie naming that
- * session. The cookie is bound to the session rather than the table, so it
+ * session, a random browser identity and a signed expiry. Re-entering the same
+ * visit preserves that identity. The cookie is bound to the session, so it
  * stops working the moment service clears the table: the party that just left
  * cannot watch the next one order.
  *
@@ -46,8 +47,11 @@ export class GuestAccessService {
   }
 
   /** The `Set-Cookie` header value that makes the caller a guest of `tableSessionId`. */
-  cookieFor(tableSessionId: number): string {
-    const value = `${tableSessionId}.${this.mac(`session:${tableSessionId}`)}`;
+  cookieFor(tableSessionId: number, previous?: GuestViewer): string {
+    const guestId = previous?.tableSessionId === tableSessionId ? previous.guestId : randomUUID();
+    const expiresAt = Math.floor(Date.now() / 1000) + GUEST_COOKIE_MAX_AGE_SECONDS;
+    const payload = `${tableSessionId}.${guestId}.${expiresAt}`;
+    const value = `${payload}.${this.mac(`guest:v2:${payload}`)}`;
 
     return [
       `${GUEST_COOKIE}=${value}`,
@@ -65,14 +69,23 @@ export class GuestAccessService {
    */
   async resolve(cookieHeader: string | undefined): Promise<GuestViewer | null> {
     const value = readCookie(cookieHeader, GUEST_COOKIE);
-    const [id, mac] = value?.split('.') ?? [];
+    const [id, guestId, expiresAt, mac, extra] = value?.split('.') ?? [];
     const tableSessionId = Number(id);
 
-    if (!Number.isSafeInteger(tableSessionId) || tableSessionId <= 0 || !mac) {
+    if (
+      !Number.isSafeInteger(tableSessionId) ||
+      tableSessionId <= 0 ||
+      !mac ||
+      extra ||
+      !guestId ||
+      !/^[0-9a-f-]{36}$/.test(guestId) ||
+      !Number.isSafeInteger(Number(expiresAt)) ||
+      Number(expiresAt) <= Date.now() / 1000
+    ) {
       return null;
     }
 
-    if (!this.equal(mac, this.mac(`session:${tableSessionId}`))) {
+    if (!this.equal(mac, this.mac(`guest:v2:${id}.${guestId}.${expiresAt}`))) {
       return null;
     }
 
@@ -85,7 +98,7 @@ export class GuestAccessService {
       return null;
     }
 
-    return { kind: 'guest', tableSessionId, tableId: session.tableId };
+    return { kind: 'guest', guestId, tableSessionId, tableId: session.tableId };
   }
 
   private mac(message: string): string {

@@ -122,7 +122,7 @@ export class OrderItemsService {
       );
     }
 
-    await this.events.itemStatusChanged(updated, orderItem.status);
+    await this.events.itemStatusChanged(updated, orderItem.status, actor);
     await this.stock.publish(ingredients);
 
     return updated;

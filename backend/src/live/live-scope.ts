@@ -40,7 +40,9 @@ export function scopeEvent(
     return viewer.kind === 'staff' && viewer.role === 'ADMIN' ? event : null;
 
   if (viewer?.kind === 'guest') {
-    return logged.tableSessionId === viewer.tableSessionId ? withoutEmployee(event) : null;
+    if (logged.tableSessionId !== viewer.tableSessionId) return null;
+    if (!event.type.startsWith('session.') && logged.guestId !== viewer.guestId) return null;
+    return withoutEmployee(event);
   }
 
   const station = stationProductTypes(viewer);
@@ -88,10 +90,10 @@ export function onlyStationItems<T extends StationOrder>(
 }
 
 /** The order as a guest sees it: without the employee who took it. */
-export function orderForGuest<T extends { employeeId: number | null; employee: object | null }>(
-  order: T,
-): T {
-  return { ...order, employeeId: null, employee: null } as T;
+export function orderForGuest<
+  T extends { employeeId: number | null; employee: object | null; guestId?: string | null },
+>(order: T): T {
+  return { ...order, guestId: undefined, employeeId: null, employee: null } as T;
 }
 
 function withoutEmployee(event: OrderEvent): OrderEvent {

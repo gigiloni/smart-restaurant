@@ -47,7 +47,7 @@ export class LiveService {
         include: sessionInclude,
       });
       const orders = await db.order.findMany({
-        where: { tableSessionId: viewer.tableSessionId },
+        where: { tableSessionId: viewer.tableSessionId, guestId: viewer.guestId },
         include: orderDetailsInclude,
         orderBy: { id: 'asc' },
       });
@@ -69,7 +69,10 @@ export class LiveService {
         orderBy: { id: 'asc' },
       });
 
-      const ingredients = viewer?.kind === 'staff' && viewer.role === 'ADMIN' ? await db.ingredient.findMany({ orderBy: { name: 'asc' } }) : [];
+      const ingredients =
+        viewer?.kind === 'staff' && viewer.role === 'ADMIN'
+          ? await db.ingredient.findMany({ orderBy: { name: 'asc' } })
+          : [];
       return { sessions, orders, ingredients };
     }
 

@@ -35,7 +35,7 @@ export class CheckoutService {
       const viewer = this.auth.viewer();
       const current =
         viewer?.kind === 'guest'
-          ? `guest:${viewer.tableSessionId}`
+          ? `guest:${viewer.tableSessionId}:${viewer.guestId}`
           : viewer?.kind === 'staff'
             ? `staff:${viewer.employeeId}:${viewer.role}`
             : '';
@@ -78,7 +78,7 @@ export class CheckoutService {
     const viewer = this.auth.viewer();
     const scope =
       viewer?.kind === 'guest'
-        ? `guest:${viewer.tableSessionId}`
+        ? `guest:${viewer.tableSessionId}:${viewer.guestId}`
         : viewer?.kind === 'staff'
           ? `staff:${viewer.employeeId}:${viewer.role}`
           : '';
@@ -97,7 +97,7 @@ export class CheckoutService {
           const current = this.auth.viewer();
           const currentScope =
             current?.kind === 'guest'
-              ? `guest:${current.tableSessionId}`
+              ? `guest:${current.tableSessionId}:${current.guestId}`
               : current?.kind === 'staff'
                 ? `staff:${current.employeeId}:${current.role}`
                 : '';

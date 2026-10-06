@@ -40,7 +40,7 @@ export class OrdersService {
     const station = stationProductTypes(viewer);
     const where =
       viewer.kind === 'guest'
-        ? { tableSessionId: viewer.tableSessionId }
+        ? { tableSessionId: viewer.tableSessionId, guestId: viewer.guestId }
         : station
           ? {
               status: 'OPEN' as const,
@@ -61,7 +61,7 @@ export class OrdersService {
   async findOneVisible(id: number, viewer: Viewer) {
     const order = await this.findOne(id);
     if (viewer.kind === 'guest') {
-      if (order.tableSessionId !== viewer.tableSessionId)
+      if (order.tableSessionId !== viewer.tableSessionId || order.guestId !== viewer.guestId)
         throw new NotFoundException(`Order ${id} not found`);
       return orderForGuest(order);
     }
@@ -140,6 +140,7 @@ export class OrdersService {
         guest.tableSessionId,
         { employeeId: null, items: dto.items },
         dto.tableId,
+        guest.guestId,
       );
     } catch (error) {
       throw this.mapUnknownReference(error);
@@ -149,7 +150,7 @@ export class OrdersService {
       throw new ConflictException('Your table has been cleared; scan the QR code again');
     }
 
-    return order;
+    return orderForGuest(order);
   }
 
   /**
@@ -164,6 +165,7 @@ export class OrdersService {
     tableSessionId: number,
     dto: Omit<CreateOrderDto, 'tableId'>,
     expectedTableId?: number,
+    guestId?: string,
   ): Promise<OrderWithDetails | null> {
     const session = await this.locks.tableSession(tableSessionId);
 
@@ -181,6 +183,7 @@ export class OrdersService {
 
     const created = await this.ordersRepository.create({
       ...dto,
+      guestId,
       tableSessionId: session.id,
       tableId: session.tableId,
     });
@@ -238,7 +241,7 @@ export class OrdersService {
 
     const closed = await this.ordersRepository.close(id);
 
-    await this.events.orderClosed(closed);
+    await this.events.orderClosed(closed, by.actor);
 
     return closed;
   }

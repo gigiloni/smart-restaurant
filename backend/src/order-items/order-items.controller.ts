@@ -122,6 +122,7 @@ export class OrderItemsController {
     if (viewer?.kind === 'guest') {
       return this.orderItemsService.create(orderId, dto, {
         tableSessionId: viewer.tableSessionId,
+        guestId: viewer.guestId,
       });
     }
 

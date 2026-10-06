@@ -50,7 +50,7 @@ export class LiveController {
       '- **SERVICE, ADMIN**: every open session and all of its orders, paid ones included.\n' +
       '- **KITCHEN**: open orders holding at least one APPETIZER or FOOD item, with only those items, and their sessions.\n' +
       '- **BAR**: the same for DRINK items.\n' +
-      '- **Guests**: their own session and all of its orders. `employeeId` and `employee` are always null.',
+      '- **Guests**: their own table session and only orders placed by their browser identity. `employeeId` and `employee` are always null.',
   })
   @ApiOkResponse({
     description: 'The live state and its cursor.',
@@ -74,7 +74,7 @@ export class LiveController {
       '**No lost updates.** Every message carries the event id as its SSE `id`, so when the connection drops the browser reconnects with `Last-Event-ID` and the stream resumes exactly after the last message received. ' +
       `Changes are kept for ${LOG_RETENTION_HOURS} hours; a client away for longer gets \`resync\`.\n\n` +
       '**Scope** is the same as `GET /live/snapshot`. KITCHEN and BAR get item events for their product types, and order and move events for orders holding such items with the other items removed; they get no `session.opened` or `session.closed`. ' +
-      'Guests get the events of their own session without employees, and the stream ends after their `session.closed`.\n\n' +
+      'Guests get their own order events without employees and the lifecycle events of their table session. The stream ends after `session.closed`.\n\n' +
       '**Moves.** When a party moves, only `session.moved` is sent; update the `tableId` and `table` of every order in that session from it.',
   })
   @ApiHeader({

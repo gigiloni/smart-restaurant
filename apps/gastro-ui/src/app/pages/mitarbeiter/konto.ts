@@ -1,3 +1,4 @@
+import { PasswordToggle } from '../../components/password-toggle/password-toggle';
 import { MessageService } from 'primeng/api';
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
@@ -7,7 +8,7 @@ import { AuthService } from '../../services/auth-service';
 
 @Component({
   selector: 'app-konto',
-  imports: [FormsModule],
+  imports: [PasswordToggle, FormsModule],
   templateUrl: './konto.html',
 })
 export class Konto {

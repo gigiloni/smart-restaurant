@@ -17,6 +17,7 @@ export const viewerSchema = z
     }),
     z.object({
       kind: z.literal('guest'),
+      guestId: z.uuid().meta({ description: 'This browser identity within the visit.' }),
       tableSessionId: z
         .number()
         .int()

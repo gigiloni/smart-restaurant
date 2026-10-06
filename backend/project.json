@@ -8,13 +8,9 @@
     "build": {
       "executor": "@nx/js:tsc",
 
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
 
-      "outputs": [
-        "{options.outputPath}"
-      ],
+      "outputs": ["{options.outputPath}"],
 
       "options": {
         "outputPath": "dist/backend",

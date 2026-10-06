@@ -1,3 +1,4 @@
+import { PasswordToggle } from '../../components/password-toggle/password-toggle';
 import { MessageService } from 'primeng/api';
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
@@ -11,7 +12,7 @@ import { DialogModule } from 'primeng/dialog';
 
 @Component({
   selector: 'app-personal',
-  imports: [FormsModule, SelectModule, DialogModule],
+  imports: [PasswordToggle, FormsModule, SelectModule, DialogModule],
   templateUrl: './personal.html',
 })
 export class Personal {

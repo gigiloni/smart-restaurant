@@ -91,17 +91,21 @@
         email
         autocomplete="off"
       />
-      <label for="staff-password">Startpasswort</label
-      ><input
-        id="staff-password"
-        name="password"
-        type="password"
-        [(ngModel)]="password"
-        required
-        minlength="12"
-        maxlength="128"
-        autocomplete="new-password"
-      />
+      <label for="staff-password">Startpasswort</label>
+      <div class="password-field">
+        <input
+          #staffpasswordInput
+          id="staff-password"
+          name="password"
+          type="password"
+          [(ngModel)]="password"
+          required
+          minlength="12"
+          maxlength="128"
+          autocomplete="new-password"
+        />
+        <app-password-toggle [field]="staffpasswordInput" />
+      </div>
       <p class="muted">
         Mindestens 12 Zeichen. Das Teammitglied kann es unter „Mein Konto“ ändern.
       </p>

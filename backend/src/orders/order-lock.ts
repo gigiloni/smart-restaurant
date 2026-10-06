@@ -18,6 +18,7 @@ export interface OrderChange {
    * exist: answering 403 would confirm the id is on someone else's bill.
    */
   tableSessionId?: number;
+  guestId?: string;
 
   /** Let a closed order through: paying for it again is a no-op, not a conflict. */
   allowClosed?: boolean;
@@ -42,7 +43,8 @@ export class OrderLock {
 
     if (
       !order ||
-      (change.tableSessionId !== undefined && order.tableSessionId !== change.tableSessionId)
+      (change.tableSessionId !== undefined && order.tableSessionId !== change.tableSessionId) ||
+      (change.guestId !== undefined && order.guestId !== change.guestId)
     ) {
       throw new NotFoundException(`Order ${id} not found`);
     }

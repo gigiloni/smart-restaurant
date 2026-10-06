@@ -72,7 +72,8 @@ body {
 a {
   color: var(--light-accent);
 }
-button:not(.p-tab),
+/* Keep button defaults weaker than component-specific styles. */
+button:where(:not(.p-tab, .p-toast-close-button, .p-dialog-close-button, .password-toggle)),
 select,
 .primary-button {
   font: inherit;
@@ -81,7 +82,7 @@ select,
   border-radius: var(--radius-md);
   padding: 0.85rem 1.1rem;
 }
-button:not(.p-tab),
+button:where(:not(.p-tab, .p-toast-close-button, .p-dialog-close-button, .password-toggle)),
 .primary-button {
   background: var(--red-accent);
   color: var(--text);
@@ -90,7 +91,9 @@ button:not(.p-tab),
     background 0.2s,
     transform 0.2s;
 }
-button:not(.p-tab):hover:not(:disabled),
+button:where(
+    :not(.p-tab, .p-toast-close-button, .p-dialog-close-button, .password-toggle)
+  ):hover:not(:disabled),
 .primary-button:hover {
   background: color-mix(in srgb, var(--red-accent) 80%, var(--text));
 }
@@ -304,6 +307,17 @@ p {
 }
 .product-card:hover .product-photo img {
   transform: scale(1.035);
+}
+/* Keep the dessert and lemon syrup visible in wide cards and cart thumbnails. */
+img[src$='/dishes/panna-cotta-plain.jpg'] {
+  object-position: 50% 75%;
+}
+img[src$='/dishes/beer.jpg'] {
+  object-fit: contain;
+  background: #fff;
+}
+img[src$='/dishes/chianti.jpg'] {
+  object-position: 70% 57%;
 }
 .selected-pill {
   position: absolute;
@@ -593,6 +607,9 @@ form.form-panel {
 .staff-sidebar {
   position: sticky;
   top: 110px;
+  max-height: calc(100dvh - 126px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 1.25rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -879,7 +896,9 @@ button.quiet-button {
     gap: 1rem;
   }
   .staff-sidebar {
-    position: static;
+    position: sticky;
+    top: 90px;
+    max-height: calc(100dvh - 106px);
   }
   .staff-sidebar nav {
     flex-direction: row;
@@ -914,4 +933,48 @@ button.quiet-button {
 /* Keep notifications within the viewport, including above open dialogs. */
 .p-toast {
   max-width: calc(100vw - 2rem);
+}
+
+.password-field {
+  position: relative;
+}
+.password-field input {
+  padding-inline-end: 3.5rem;
+}
+button.password-toggle {
+  position: absolute;
+  inset-inline-end: 0.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+button.p-toast-close-button,
+button.p-dialog-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+button.p-toast-close-button:hover,
+button.p-dialog-close-button:hover {
+  background: var(--surface-hover);
 }

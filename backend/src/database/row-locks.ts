@@ -20,6 +20,7 @@ import type { PrismaAdapter } from './transaction.js';
  */
 
 export interface LockedOrder {
+  guestId: string | null;
   id: number;
   status: OrderStatus;
   tableSessionId: number;
@@ -45,7 +46,7 @@ export class RowLocks {
   async order(id: number): Promise<LockedOrder | null> {
     const rows = await this.txHost.tx.$queryRaw<LockedOrder[]>`
       SELECT order_id AS id, status::text AS status, table_session_id AS "tableSessionId",
-        employee_id AS "employeeId"
+        employee_id AS "employeeId", guest_id AS "guestId"
       FROM "Order"
       WHERE order_id = ${id}
       FOR UPDATE`;

@@ -125,6 +125,26 @@ export class OrderEventFeed implements OnModuleInit, OnModuleDestroy {
         }
 
         this.lastSeen = logged.event.id;
+        // Read from committed rows only; rolled-back transitions never reach STDOUT.
+        if (logged.statusLog) {
+          const audit = logged.statusLog;
+          process.stdout.write(
+            JSON.stringify({
+              level: 'info',
+              service: 'smart-restaurant',
+              event: 'order.status_changed',
+              auditId: audit.id,
+              eventId: logged.event.id,
+              timestamp: audit.occurredAt.toISOString(),
+              employeeId: audit.employeeId,
+              employeeRole: audit.employeeRole,
+              orderId: audit.orderId,
+              orderItemId: audit.orderItemId,
+              previousStatus: audit.previousStatus,
+              status: audit.status,
+            }) + '\n',
+          );
+        }
         this.subject.next({ kind: 'event', logged });
       }
 

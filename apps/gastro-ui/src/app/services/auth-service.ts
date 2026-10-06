@@ -70,13 +70,13 @@ export class AuthService {
       const previous = this.viewer();
       const oldIdentity =
         previous?.kind === 'guest'
-          ? `guest:${previous.tableSessionId}`
+          ? `guest:${previous.tableSessionId}:${previous.guestId}`
           : previous?.kind === 'staff'
             ? `staff:${previous.employeeId}`
             : '';
       const newIdentity =
         viewer?.kind === 'guest'
-          ? `guest:${viewer.tableSessionId}`
+          ? `guest:${viewer.tableSessionId}:${viewer.guestId}`
           : viewer?.kind === 'staff'
             ? `staff:${viewer.employeeId}`
             : '';

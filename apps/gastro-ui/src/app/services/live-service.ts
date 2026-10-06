@@ -51,7 +51,7 @@ export class LiveService {
         viewer?.kind === 'staff'
           ? `staff:${viewer.employeeId}:${viewer.role}`
           : viewer
-            ? `guest:${viewer.tableSessionId}`
+            ? `guest:${viewer.tableSessionId}:${viewer.guestId}`
             : '';
       if (key === this.key) return;
       untracked(() => {

@@ -27,7 +27,10 @@ export class EmployeesRepository {
       orderBy: [{ lastname: 'asc' }, { firstname: 'asc' }],
       select: { ...employeePublicSelect, authUserId: true },
     });
-    return employees.map(({ authUserId, ...employee }) => ({ ...employee, hasLogin: !!authUserId }));
+    return employees.map(({ authUserId, ...employee }) => ({
+      ...employee,
+      hasLogin: !!authUserId,
+    }));
   }
 
   findById(id: number) {

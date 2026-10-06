@@ -31,6 +31,7 @@ export type OrderWithDetails = Prisma.OrderGetPayload<{
 }>;
 
 export interface NewOrder {
+  guestId?: string;
   tableSessionId: number;
   tableId: number;
   employeeId?: number | null;

@@ -25,13 +25,7 @@ const REMAKE_RESOLUTIONS = {
 } as const satisfies Partial<Record<OrderItemStatus, string>>;
 
 export type OrderItemTransitionKind =
-  | 'unchanged'
-  | 'forward'
-  | 'skip'
-  | 'undo'
-  | 'send-back'
-  | 'remake'
-  | 'keep';
+  'unchanged' | 'forward' | 'skip' | 'undo' | 'send-back' | 'remake' | 'keep';
 
 /**
  * What each kind of move means. Keyed by the value `classifyOrderItemTransition`

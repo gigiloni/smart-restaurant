@@ -1,4 +1,4 @@
-import { Logger, StandardSchemaValidationPipe } from '@nestjs/common';
+import { ConsoleLogger, Logger, StandardSchemaValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { fromNodeHeaders } from 'better-auth/node';
@@ -10,7 +10,9 @@ import { enableCors } from './cors.js';
 import { setupSwagger } from './swagger/swagger.js';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
+    logger: new ConsoleLogger({ json: true }),
+  });
 
   const configService = app.get(ConfigService);
   const authService = app.get(AuthService);
