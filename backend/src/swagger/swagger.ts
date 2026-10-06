@@ -22,15 +22,13 @@ const API_DESCRIPTION = [
   '### Conventions',
   '',
   '- Every route is served under the `/api` prefix.',
-  '- Business routes require a Better Auth session cookie. In this Swagger UI, run',
-  '  **Authentication → Sign in** with Try it out, then test the business routes in the same browser tab.',
-  '  The browser stores the HTTP-only cookie; do not enter its value in Authorize.',
-  '- Role and ownership checks return 403; missing or expired sessions return 401.',
-  "- Guests have no login. The guest app sends the `tableId` and `token` from the table's QR code to",
-  '  `POST /viewer/guest`, which sets the HTTP-only `sr_guest` cookie. Only routes that say so accept',
-  '  it: the menu (`GET /products`, `POST /products-by-id`), ordering for their own party (`POST /orders`,',
-  '  `POST /orders/{id}/items`), the live updates (`/live/*`) and `GET /viewer`. It stops working when',
-  '  service clears the table.',
+  '- **Access control is switched off for now: every route is public.** The frontend has no login',
+  '  pages yet. Login (**Authentication → Sign in**) still works and a signed-in caller is recognised,',
+  '  but no route requires it except `GET /employees/me`. Who-may-do-what notes in these docs, such as',
+  '  roles in the lifecycle tables, describe the intended rules for when login is switched back on.',
+  "- Guests may also join their table's party with the QR code: `POST /viewer/guest` with the `tableId`",
+  '  and `token` sets the HTTP-only `sr_guest` cookie, which scopes `POST /orders`, adding items and the',
+  '  live updates to their own party. Optional while every route is public.',
   '- Request bodies and path parameters are validated against the Zod schemas in the shared',
   '  `@smart-restaurant/contracts` library, so the frontend and the backend agree on one definition.',
   '- Ids are auto-incrementing integers. Path parameters arrive as strings and are coerced, so',
@@ -198,7 +196,6 @@ export function setupSwagger(app: INestApplication): void {
       { type: 'apiKey', description: 'Guest access, set by `POST /viewer/guest`.' },
       GUEST_COOKIE,
     )
-    .addSecurityRequirements('better-auth.session_token')
     .build();
 
   const documentOptions: SwaggerDocumentOptions = {

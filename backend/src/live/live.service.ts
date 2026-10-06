@@ -27,7 +27,7 @@ export class LiveService {
    * replaying the stream from `cursor` neither repeats nor misses a change.
    */
   @Transactional<PrismaAdapter>({ isolationLevel: 'RepeatableRead' })
-  async snapshot(viewer: Viewer) {
+  async snapshot(viewer: Viewer | undefined) {
     // First statement of the transaction, so it fixes the snapshot.
     const cursor = await this.log.head();
 
@@ -38,10 +38,10 @@ export class LiveService {
    * Queries run one after another: they share the transaction's single
    * connection, which cannot run two at once anyway.
    */
-  private async scopedState(viewer: Viewer) {
+  private async scopedState(viewer: Viewer | undefined) {
     const db = this.txHost.tx;
 
-    if (viewer.kind === 'guest') {
+    if (viewer?.kind === 'guest') {
       const sessions = await db.tableSession.findMany({
         where: { id: viewer.tableSessionId },
         include: sessionInclude,

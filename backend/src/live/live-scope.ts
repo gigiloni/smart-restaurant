@@ -16,24 +16,28 @@ const STATION_PRODUCT_TYPES: Partial<Record<EmployeeRole, readonly ProductType[]
  * The product types the viewer is limited to, or null when they see
  * everything. Guests are limited by table session instead.
  */
-export function stationProductTypes(viewer: Viewer): readonly ProductType[] | null {
-  return viewer.kind === 'staff' ? (STATION_PRODUCT_TYPES[viewer.role] ?? null) : null;
+export function stationProductTypes(viewer: Viewer | undefined): readonly ProductType[] | null {
+  return viewer?.kind === 'staff' ? (STATION_PRODUCT_TYPES[viewer.role] ?? null) : null;
 }
 
 /**
  * The event as this viewer may see it, or null if they may not see it at all.
  *
- * - Service and admin see everything.
+ * - Anonymous callers, service and admin see everything. (Access control is
+ *   off for now: see RequireLogin.)
  * - Kitchen and bar see item events for their product types, and order and
  *   move events for orders holding at least one such item, with the other
  *   items taken out. Opening and clearing tables is none of their business.
  * - Guests see everything about their own table session, minus who served
  *   them.
  */
-export function scopeEvent(viewer: Viewer, logged: LoggedOrderEvent): OrderEvent | null {
+export function scopeEvent(
+  viewer: Viewer | undefined,
+  logged: LoggedOrderEvent,
+): OrderEvent | null {
   const { event } = logged;
 
-  if (viewer.kind === 'guest') {
+  if (viewer?.kind === 'guest') {
     return logged.tableSessionId === viewer.tableSessionId ? withoutEmployee(event) : null;
   }
 

@@ -10,10 +10,6 @@ import {
   type UpdateIngredientDto,
 } from '@smart-restaurant/contracts';
 
-import { AccessService } from '../auth/access.service.js';
-import { CurrentEmployee } from '../auth/current-employee.decorator.js';
-import type { AuthenticatedEmployee } from '../auth/auth.types.js';
-
 import {
   ApiEntityConflictResponse,
   ApiEntityNotFoundResponse,
@@ -25,10 +21,7 @@ import { IngredientsService } from './ingredients.service.js';
 @ApiTags('Ingredients')
 @Controller('ingredients')
 export class IngredientsController {
-  constructor(
-    private readonly ingredientsService: IngredientsService,
-    private readonly access: AccessService,
-  ) {}
+  constructor(private readonly ingredientsService: IngredientsService) {}
 
   @Get()
   @ApiOperation({
@@ -66,11 +59,7 @@ export class IngredientsController {
     standardSchema: ingredientSchema,
   })
   @ApiValidationErrorResponse('The payload failed validation.')
-  create(
-    @Body({ schema: createIngredientSchema }) dto: CreateIngredientDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireAdmin(actor);
+  create(@Body({ schema: createIngredientSchema }) dto: CreateIngredientDto) {
     return this.ingredientsService.create(dto);
   }
 
@@ -88,9 +77,7 @@ export class IngredientsController {
   update(
     @Param('id', { schema: idParamSchema }) id: number,
     @Body({ schema: updateIngredientSchema }) dto: UpdateIngredientDto,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
   ) {
-    this.access.requireAdmin(actor);
     return this.ingredientsService.update(id, dto);
   }
 
@@ -109,11 +96,7 @@ export class IngredientsController {
   @ApiValidationErrorResponse('`id` is not a positive integer.')
   @ApiEntityNotFoundResponse('No ingredient with that id exists.')
   @ApiEntityConflictResponse('The ingredient is still used by at least one product recipe.')
-  remove(
-    @Param('id', { schema: idParamSchema }) id: number,
-    @CurrentEmployee() actor: AuthenticatedEmployee,
-  ) {
-    this.access.requireAdmin(actor);
+  remove(@Param('id', { schema: idParamSchema }) id: number) {
     return this.ingredientsService.remove(id);
   }
 }
