@@ -2,7 +2,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import type { Order, Product, Viewer } from '@smart-restaurant/contracts';
 
+import { GuestAccessService } from '../src/auth/guest-access.service.js';
 import { useTestApp } from './support/context.js';
+import { eventHead } from './support/database.js';
 import { api } from './support/http.js';
 
 const t = useTestApp();
@@ -111,16 +113,25 @@ describe('I-GST guests', () => {
     expect((await guest.api.post('/api/orders', { tableId: to.id, items: oneDish() })).status).toBe(201);
   });
 
-  it('07 forgets the guest once the table is cleared, and ignores forged cookies', async () => {
+  it('07 ignores forged cookies', async () => {
+    const guest = await t.fixtures.guest((await t.fixtures.table()).id);
+    const other = await t.fixtures.guest((await t.fixtures.table()).id);
+    const [id, mac] = guest.cookie.split('=')[1].split('.');
+
+    // Both sessions are open, so only the MAC check can turn these away.
+    const tampered = `sr_guest=${id}.${mac[0] === 'A' ? 'B' : 'A'}${mac.slice(1)}`;
+    const otherSession = `sr_guest=${other.session.id}.${mac}`;
+    for (const cookie of [tampered, otherSession]) {
+      expect((await api(t.app, cookie).get('/api/viewer')).body).toBeNull();
+    }
+    expect((await guest.api.get<Viewer>('/api/viewer')).body.kind).toBe('guest');
+  });
+
+  it('07b forgets the guest once the table is cleared', async () => {
     const guest = await t.fixtures.guest((await t.fixtures.table()).id);
     await t.http.post(`/api/table-sessions/${guest.session.id}/close`);
 
     expect((await guest.api.get('/api/viewer')).body).toBeNull();
-
-    const [name, value] = guest.cookie.split('=');
-    const [id, mac] = value.split('.');
-    const forged = `${name}=${id}.${mac[0] === 'A' ? 'B' : 'A'}${mac.slice(1)}`;
-    expect((await api(t.app, forged).get('/api/viewer')).body).toBeNull();
   });
 
   it('08 seats a new party, with a new cookie, when someone scans after the table was cleared', async () => {
@@ -146,5 +157,27 @@ describe('I-GST guests', () => {
 
     expect(order.status).toBe(201);
     expect(order.body.tableSessionId).not.toBe(guest.session.id);
+  });
+
+  it("10 lets nobody add to their party's order once it is paid", async () => {
+    const table = await t.fixtures.table();
+    const guest = await t.fixtures.guest(table.id);
+    const order = (await guest.api.post<Order>('/api/orders', { tableId: table.id, items: oneDish() })).body;
+    await t.fixtures.pay(order);
+
+    expect((await guest.api.post(`/api/orders/${order.id}/items`, { productId: drink.id })).status).toBe(409);
+  });
+
+  it('11 answers 400 for a valid token of a table that no longer exists, and seats nobody', async () => {
+    const table = await t.fixtures.table();
+    const token = t.app.get(GuestAccessService).tableToken(table.id);
+    expect((await t.http.delete(`/api/tables/${table.id}`)).status).toBe(200);
+    const head = await eventHead();
+
+    const response = await t.http.post('/api/viewer/guest', { tableId: table.id, token });
+
+    expect(response.status).toBe(400);
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(await eventHead()).toBe(head);
   });
 });

@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import { prismaError, withTransactions } from '../../test/support/unit.js';
@@ -42,6 +42,7 @@ describe('U-SV-SES TableSessionsService', () => {
 
     await expect(sessions.openOrJoin(1)).resolves.toEqual({ session: { id: 6 }, created: true });
     expect(sessionOpened).toHaveBeenCalledOnce();
+    expect(sessionOpened).toHaveBeenCalledWith({ id: 6 });
   });
 
   it('03 joins the winner when two scans race', async () => {
@@ -72,7 +73,10 @@ describe('U-SV-SES TableSessionsService', () => {
       repository: { move: vi.fn().mockRejectedValue(prismaError('P2002')) },
     });
 
-    await expect(sessions.move(1, 2)).rejects.toThrow('already has a seated party');
+    const moving = sessions.move(1, 2);
+
+    await expect(moving).rejects.toBeInstanceOf(ConflictException);
+    await expect(moving).rejects.toThrow('already has a seated party');
   });
 
   it('06 refuses to move a cleared party and answers 404 for an unknown one', async () => {
@@ -105,7 +109,10 @@ describe('U-SV-SES TableSessionsService', () => {
       repository: { countOpenOrders: vi.fn().mockResolvedValue(2) },
     });
 
-    await expect(sessions.close(1)).rejects.toThrow('still has 2 unpaid orders: close them');
+    const clearing = sessions.close(1);
+
+    await expect(clearing).rejects.toBeInstanceOf(ConflictException);
+    await expect(clearing).rejects.toThrow('still has 2 unpaid orders: close them');
   });
 
   it('09 treats clearing a cleared table as a no-op', async () => {
@@ -119,5 +126,65 @@ describe('U-SV-SES TableSessionsService', () => {
     await sessions.close(1);
 
     expect(sessionClosed).not.toHaveBeenCalled();
+  });
+
+  it('10 moves the party and records the table it left', async () => {
+    const moved = { id: 1, tableId: 2 };
+    const move = vi.fn().mockResolvedValue(moved);
+    const sessionMoved = vi.fn();
+    const sessions = await service({
+      locks: locked(1),
+      repository: { move, findById: vi.fn().mockResolvedValue({ id: 1, tableId: 2 }) },
+      events: { sessionMoved },
+    });
+
+    await expect(sessions.move(1, 2)).resolves.toEqual({ id: 1, tableId: 2 });
+    expect(move).toHaveBeenCalledWith(1, 2);
+    expect(sessionMoved).toHaveBeenCalledWith(moved, 1);
+  });
+
+  it('11 maps a move to an unknown table to 400', async () => {
+    const sessions = await service({
+      locks: locked(1),
+      repository: { move: vi.fn().mockRejectedValue(prismaError('P2003')) },
+    });
+
+    await expect(sessions.move(1, 99)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('12 clears a table whose orders are all paid, and records it', async () => {
+    const closed = { id: 1, closedAt: new Date() };
+    const close = vi.fn().mockResolvedValue(closed);
+    const sessionClosed = vi.fn();
+    const sessions = await service({
+      locks: locked(1),
+      repository: {
+        countOpenOrders: vi.fn().mockResolvedValue(0),
+        close,
+        findById: vi.fn().mockResolvedValue(closed),
+      },
+      events: { sessionClosed },
+    });
+
+    await expect(sessions.close(1)).resolves.toBe(closed);
+    expect(sessionClosed).toHaveBeenCalledWith(closed);
+  });
+
+  it('13 answers 404 when clearing an unknown session', async () => {
+    const sessions = await service({ locks: { tableSession: vi.fn().mockResolvedValue(null) } });
+
+    await expect(sessions.close(1)).rejects.toThrow(NotFoundException);
+  });
+
+  it('14 rethrows an insert conflict when no winning session can be found', async () => {
+    const conflict = prismaError('P2002');
+    const sessions = await service({
+      repository: {
+        findOpenByTable: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockRejectedValue(conflict),
+      },
+    });
+
+    await expect(sessions.openOrJoin(1)).rejects.toBe(conflict);
   });
 });

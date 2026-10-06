@@ -36,10 +36,14 @@ describe('I-SES table sessions', () => {
     const table = await t.fixtures.table();
     const session = await t.fixtures.seat(table.id);
     await t.fixtures.order(table.id, [food.id]);
+    const left = await t.fixtures.seat((await t.fixtures.table()).id);
+    expect((await t.http.post(`/api/table-sessions/${left.id}/close`)).status).toBe(200);
 
     const list = await t.http.get('/api/table-sessions');
+    const ids = list.body.map((s: { id: number }) => s.id);
+    expect(ids).toContain(session.id);
+    expect(ids).not.toContain(left.id);
     expect(list.body.every((s: { closedAt: string | null }) => s.closedAt === null)).toBe(true);
-    expect(list.body.map((s: { id: number }) => s.id)).toContain(session.id);
 
     const detail = await t.http.get<TableSessionDetails>(`/api/table-sessions/${session.id}`);
     tableSessionDetailsSchema.parse(detail.body);

@@ -100,10 +100,12 @@ describe('I-ITM order items', () => {
   it('06 does not take payment while an item is being remade', async () => {
     const order = await t.fixtures.order((await t.fixtures.table()).id, [drink.id]);
     const [item] = order.orderItems;
-    await move(order, item, 'SERVED');
-    await move(order, item, 'REMAKE');
+    expect((await move(order, item, 'SERVED')).status).toBe(200);
+    expect((await move(order, item, 'REMAKE')).status).toBe(200);
 
-    expect((await t.http.post(`/api/orders/${order.id}/close`)).status).toBe(409);
+    const payment = await t.http.post(`/api/orders/${order.id}/close`);
+    expect(payment.status).toBe(409);
+    expect(payment.body.message).toContain('still has 1 item that has not been served');
   });
 
   it('07 removes an item', async () => {

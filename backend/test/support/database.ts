@@ -1,5 +1,6 @@
 import pg from 'pg';
 
+import { testDatabaseName, testEnv } from './env.js';
 import type { Json } from './http.js';
 
 /** Runs one statement on the test database outside the application. */
@@ -7,7 +8,7 @@ export async function sql<Row = Record<string, unknown>>(
   text: string,
   params: unknown[] = [],
 ): Promise<Row[]> {
-  const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  const client = new pg.Client({ connectionString: testEnv.DATABASE_URL });
   await client.connect();
 
   try {
@@ -18,15 +19,20 @@ export async function sql<Row = Record<string, unknown>>(
 }
 
 /**
- * Empties every table and restarts the ids. The event counter row stays (it is
- * created by a migration) and goes back to 0.
+ * Empties every table and restarts the ids, so a table added by a later
+ * migration is emptied too. The migration history stays, and so does the
+ * event counter's single row (a migration creates it), which goes back to 0.
  */
 export async function resetDatabase(): Promise<void> {
+  testDatabaseName();
+
+  const tables = await sql<{ name: string }>(
+    `SELECT tablename AS name FROM pg_tables
+     WHERE schemaname = 'public' AND tablename NOT IN ('_prisma_migrations', 'Order_Event_Counter')`,
+  );
+
   await sql(`
-    TRUNCATE TABLE
-      "Order_Event", "Order_Item", "Order", "Table_Session", "Product_Ingredient",
-      "Product", "Ingredient", "Table", "Employee", "session", "account", "verification", "user"
-    RESTART IDENTITY CASCADE;
+    TRUNCATE TABLE ${tables.map(({ name }) => `"${name}"`).join(', ')} RESTART IDENTITY CASCADE;
     UPDATE "Order_Event_Counter" SET value = 0 WHERE id = 1;
   `);
 }

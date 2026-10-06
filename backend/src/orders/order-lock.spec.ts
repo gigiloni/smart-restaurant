@@ -19,6 +19,10 @@ describe('U-SV-LCK OrderLock.forChange', () => {
     await expect(lock(open).forChange(1, { tableSessionId: 3 })).rejects.toThrow(NotFoundException);
   });
 
+  it("02b lets a guest change their own party's order", async () => {
+    await expect(lock(open).forChange(1, { tableSessionId: 2 })).resolves.toBe(open);
+  });
+
   it('03 forbids a waiter who does not own the order', async () => {
     await expect(lock(open).forChange(1, { actor: { id: 6, role: 'SERVICE' } })).rejects.toThrow(
       ForbiddenException,

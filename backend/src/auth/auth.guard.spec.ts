@@ -4,7 +4,7 @@ import type { Reflector } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import { stub } from '../../test/support/unit.js';
-import type { LoginRequirement } from './access-metadata.js';
+import { REQUIRE_LOGIN, type LoginRequirement } from './access-metadata.js';
 import { AuthGuard } from './auth.guard.js';
 import type { AuthenticatedRequest } from './auth.types.js';
 import type { ResolvedViewer, ViewerResolver } from './viewer-resolver.service.js';
@@ -24,7 +24,9 @@ function guard(
     getOrThrow: () => 'http://localhost:3000',
     get: () => frontendUrl,
   });
-  const reflector = stub<Reflector>({ getAllAndOverride: () => requirement });
+  const reflector = stub<Reflector>({
+    getAllAndOverride: (key: string) => (key === REQUIRE_LOGIN ? requirement : undefined),
+  });
   const viewers = stub<ViewerResolver>({ resolve: vi.fn().mockResolvedValue(resolved) });
 
   return new AuthGuard(config, reflector, viewers);
@@ -98,6 +100,9 @@ describe('U-AG-06..09 login requirement', () => {
 
   it('lets staff through either requirement', async () => {
     await expect(guard(staff, {}).canActivate(context(request('GET')))).resolves.toBe(true);
+    await expect(guard(staff, { guests: true }).canActivate(context(request('GET')))).resolves.toBe(
+      true,
+    );
   });
 
   it('puts the caller on the request', async () => {

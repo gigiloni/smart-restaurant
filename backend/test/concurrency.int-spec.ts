@@ -104,7 +104,7 @@ describe('I-CON concurrent requests', () => {
     }
   });
 
-  it('05 hands out event ids without gaps, in commit order', async () => {
+  it('05 hands out event ids without gaps under concurrent writers', async () => {
     const head = await eventHead();
     const tables = await Promise.all(Array.from({ length: 6 }, () => t.fixtures.table()));
 

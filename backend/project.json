@@ -76,7 +76,7 @@
 
       "options": {
         "cwd": "backend",
-        "command": "pnpm exec tsc -b tsconfig.spec.json"
+        "command": "pnpm exec tsc -b tsconfig.spec.json --force"
       }
     },
 

@@ -9,14 +9,18 @@ import type { GuestViewer } from './viewer.types.js';
 
 const guest: GuestViewer = { kind: 'guest', tableSessionId: 2, tableId: 3 };
 
+const findEmployee = vi.fn();
+
 function resolver(
   session: { user: { id: string } } | null,
   employee: { id: number; role: string } | null,
   guestViewer: GuestViewer | null,
 ) {
+  findEmployee.mockReset().mockResolvedValue(employee);
+
   return new ViewerResolver(
     stub<AuthService>({ auth: { api: { getSession: vi.fn().mockResolvedValue(session) } } }),
-    stub<PrismaService>({ employee: { findUnique: vi.fn().mockResolvedValue(employee) } }),
+    stub<PrismaService>({ employee: { findUnique: findEmployee } }),
     stub<GuestAccessService>({ resolve: vi.fn().mockResolvedValue(guestViewer) }),
   );
 }
@@ -29,6 +33,7 @@ describe('U-VR-01..04 ViewerResolver', () => {
     );
 
     expect(resolved?.viewer).toEqual({ kind: 'staff', employeeId: 4, role: 'BAR' });
+    expect(findEmployee).toHaveBeenCalledWith(expect.objectContaining({ where: { authUserId: 'u' } }));
   });
 
   it('falls back to the guest cookie', async () => {

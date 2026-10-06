@@ -16,6 +16,7 @@ beforeAll(async () => {
 
 describe('I-EVT order events', () => {
   it('01 stores every change as a valid event with gap-free ids', async () => {
+    const head = await eventHead();
     const [table, target] = [await t.fixtures.table(), await t.fixtures.table()];
     const order = await t.fixtures.order(table.id, [food.id, drink.id]);
     await t.http.post(`/api/orders/${order.id}/items`, { productId: drink.id });
@@ -28,7 +29,7 @@ describe('I-EVT order events', () => {
     await t.http.delete(`/api/orders/${doomed.id}/items/${doomed.orderItems[0].id}`);
     await t.http.delete(`/api/orders/${doomed.id}`);
 
-    const events = await eventsAfter(0);
+    const events = await eventsAfter(head);
 
     expect(new Set(events.map((e) => e.type))).toEqual(
       new Set([
@@ -37,8 +38,8 @@ describe('I-EVT order events', () => {
         'item.created', 'item.status_changed', 'item.deleted',
       ]),
     );
-    expect(events.map((e) => e.id)).toEqual(events.map((_, i) => i + 1));
-    expect(await eventHead()).toBe(events.length);
+    expect(events.map((e) => e.id)).toEqual(events.map((_, i) => head + i + 1));
+    expect(await eventHead()).toBe(head + events.length);
     // Events are replayed to every client: no login ids in them.
     expect(JSON.stringify(events)).not.toContain('authUserId');
     for (const event of events) {
@@ -55,10 +56,13 @@ describe('I-EVT order events', () => {
     const order = await t.fixtures.order((await t.fixtures.table()).id, [food.id]);
     const head = await eventHead();
 
-    await t.http.post(`/api/orders/${order.id}/close`);
-    await t.http.patch(`/api/orders/${order.id}/items/${order.orderItems[0].id}`, { status: 'SERVED' });
-    await t.http.post(`/api/table-sessions/${order.tableSessionId}/close`);
-    await t.http.post(`/api/orders/${order.id}/items`, { productId: 999999 });
+    // Each of these must fail for its documented reason, and write nothing.
+    expect((await t.http.post(`/api/orders/${order.id}/close`)).status).toBe(409);
+    expect(
+      (await t.http.patch(`/api/orders/${order.id}/items/${order.orderItems[0].id}`, { status: 'SERVED' })).status,
+    ).toBe(409);
+    expect((await t.http.post(`/api/table-sessions/${order.tableSessionId}/close`)).status).toBe(409);
+    expect((await t.http.post(`/api/orders/${order.id}/items`, { productId: 999999 })).status).toBe(400);
 
     expect(await eventHead()).toBe(head);
   });

@@ -9,80 +9,119 @@ export interface SseMessage {
   data?: Json;
 }
 
-export interface SseResult {
+export interface SseStream {
   status: number;
+  headers: Headers;
+  /** Every message received so far; heartbeat comments are left out. */
   messages: SseMessage[];
-  /** True when the server closed the stream, false when the reader stopped. */
-  ended: boolean;
-  body?: string;
+  /** True once the server has closed the stream. */
+  readonly ended: boolean;
+  /** Resolves once `predicate` holds for the messages so far; rejects on timeout or if the stream ends first. */
+  waitFor(predicate: (messages: SseMessage[]) => boolean, timeoutMs?: number): Promise<SseMessage[]>;
+  /** Resolves once the server has closed the stream; rejects on timeout. */
+  closed(timeoutMs?: number): Promise<SseMessage[]>;
+  close(): void;
 }
 
 /**
- * Opens the live stream on a listening app and collects messages until `until`
- * is satisfied, the server ends the stream, or `timeoutMs` passes. Comment
- * lines (the heartbeat) are skipped.
+ * Opens the live stream on a listening app and reads it in the background.
+ * Wait for `ready` before changing anything the test expects to see live: a
+ * change made earlier arrives as backlog instead, before `ready`.
  */
-export async function readSse(
+export async function openSse(
   app: NestFastifyApplication,
   path: string,
-  options: {
-    until?: (messages: SseMessage[]) => boolean;
-    headers?: Record<string, string>;
-    timeoutMs?: number;
-  } = {},
-): Promise<SseResult> {
+  headers: Record<string, string> = {},
+): Promise<SseStream> {
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), options.timeoutMs ?? 8_000);
   const base = (await app.getUrl()).replace('[::1]', '127.0.0.1');
-
   const response = await fetch(base + path, {
-    headers: { accept: 'text/event-stream', ...options.headers },
+    headers: { accept: 'text/event-stream', ...headers },
     signal: abort.signal,
   });
 
-  if (response.status !== 200) {
-    clearTimeout(timer);
-    return { status: response.status, messages: [], ended: true, body: await response.text() };
-  }
-
-  if (!response.body) {
-    throw new Error(`${path} answered without a body`);
-  }
-
   const messages: SseMessage[] = [];
-  const reader = response.body.getReader();
+  const waiters = new Set<() => void>();
+  let ended = response.status !== 200;
+  const wake = () => waiters.forEach((waiter) => waiter());
+
+  if (!ended) {
+    if (!response.body) {
+      throw new Error(`${path} answered without a body`);
+    }
+
+    void read(response.body, messages, wake).then(
+      () => {
+        ended = true;
+        wake();
+      },
+      () => {
+        ended = true;
+        wake();
+      },
+    );
+  }
+
+  const waitUntil = (done: () => boolean, failIfEnded: boolean, timeoutMs: number) =>
+    new Promise<SseMessage[]>((resolve, reject) => {
+      const check = () => {
+        if (done()) {
+          finish();
+          resolve(messages);
+        } else if (failIfEnded && ended) {
+          finish();
+          reject(new Error(`Stream ended first. Received: ${JSON.stringify(messages.map((m) => m.event))}`));
+        }
+      };
+      const timer = setTimeout(() => {
+        finish();
+        reject(new Error(`Timed out. Received: ${JSON.stringify(messages.map((m) => m.event))}`));
+      }, timeoutMs);
+      const finish = () => {
+        clearTimeout(timer);
+        waiters.delete(check);
+      };
+
+      waiters.add(check);
+      check();
+    });
+
+  return {
+    status: response.status,
+    headers: response.headers,
+    messages,
+    get ended() {
+      return ended;
+    },
+    waitFor: (predicate, timeoutMs = 8_000) => waitUntil(() => predicate(messages), true, timeoutMs),
+    closed: (timeoutMs = 8_000) => waitUntil(() => ended, false, timeoutMs),
+    close: () => abort.abort(),
+  };
+}
+
+async function read(body: ReadableStream<Uint8Array>, messages: SseMessage[], wake: () => void) {
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let ended = false;
 
-  try {
-    while (!options.until?.(messages)) {
-      const { value, done } = await reader.read();
+  for (;;) {
+    const { value, done } = await reader.read();
 
-      if (done) {
-        ended = true;
-        break;
-      }
+    if (done) return;
 
-      buffer += decoder.decode(value, { stream: true });
+    buffer += decoder.decode(value, { stream: true });
 
-      for (let end = buffer.indexOf('\n\n'); end !== -1; end = buffer.indexOf('\n\n')) {
-        const message = parseBlock(buffer.slice(0, end));
-        buffer = buffer.slice(end + 2);
+    for (let end = buffer.indexOf('\n\n'); end !== -1; end = buffer.indexOf('\n\n')) {
+      const message = parseBlock(buffer.slice(0, end));
+      buffer = buffer.slice(end + 2);
 
-        if (message) {
-          messages.push(message);
-        }
+      if (message) {
+        messages.push(message);
       }
     }
-  } catch (error) {
-    if (!abort.signal.aborted) throw error;
-  } finally {
-    clearTimeout(timer);
-    abort.abort();
-  }
 
-  return { status: response.status, messages, ended };
+    wake();
+  }
 }
 
 function parseBlock(block: string): SseMessage | null {
@@ -102,5 +141,6 @@ function parseBlock(block: string): SseMessage | null {
   return Object.keys(message).length ? message : null;
 }
 
-/** Gives a freshly opened stream time to subscribe before the test changes something. */
-export const settle = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
+export const isReady = (messages: SseMessage[]) => messages.some((m) => m.event === 'ready');
+export const has = (event: string) => (messages: SseMessage[]) => messages.some((m) => m.event === event);
+export const eventsOf = (messages: SseMessage[]) => messages.map((m) => m.event);

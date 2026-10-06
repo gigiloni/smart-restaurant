@@ -8,7 +8,9 @@ const t = useTestApp();
 
 describe('I-TBL tables', () => {
   it('01 lists tables sorted by number', async () => {
-    for (const tableNumber of [30, 10, 20]) await t.http.post('/api/tables', { tableNumber });
+    for (const tableNumber of [30, 10, 20]) {
+      expect((await t.http.post('/api/tables', { tableNumber })).status).toBe(201);
+    }
 
     const response = await t.http.get<Table[]>('/api/tables');
 
@@ -37,10 +39,11 @@ describe('I-TBL tables', () => {
   });
 
   it('04 keeps table numbers unique', async () => {
-    expect((await t.http.post('/api/tables', { tableNumber: 77 })).status).toBe(409);
+    expect((await t.http.post('/api/tables', { tableNumber: 88 })).status).toBe(201);
+    expect((await t.http.post('/api/tables', { tableNumber: 88 })).status).toBe(409);
 
     const other = await t.fixtures.table();
-    expect((await t.http.patch(`/api/tables/${other.id}`, { tableNumber: 77 })).status).toBe(409);
+    expect((await t.http.patch(`/api/tables/${other.id}`, { tableNumber: 88 })).status).toBe(409);
   });
 
   it('05 updates the fields sent and rejects an empty update', async () => {
@@ -83,10 +86,10 @@ describe('I-TBL tables', () => {
   });
 
   it('09 ignores fields that are not part of the payload', async () => {
-    const response = await t.http.post('/api/tables', { tableNumber: 78, id: 1, foo: 1 });
+    const response = await t.http.post('/api/tables', { tableNumber: 78, id: 999999, foo: 1 });
 
     expect(response.status).toBe(201);
-    expect(response.body.id).not.toBe(1);
+    expect(response.body.id).not.toBe(999999);
     expect(response.body).not.toHaveProperty('foo');
   });
 });

@@ -37,7 +37,8 @@ function open(options: {
   const signals = new Subject<FeedSignal>();
   const log = {
     head: vi.fn().mockResolvedValue(options.head ?? events.at(-1)?.event.id ?? 0),
-    after: vi.fn(async (cursor: number) => events.filter((e) => e.event.id > cursor)),
+    // Two per page, so the stream has to page through a longer backlog.
+    after: vi.fn(async (cursor: number) => events.filter((e) => e.event.id > cursor).slice(0, 2)),
   };
   const messages: MessageEvent[] = [];
   const state = { completed: false, error: undefined as unknown };
@@ -71,16 +72,19 @@ describe('U-LST live stream', () => {
     vi.useRealTimers();
   });
 
-  it('01 sends the backlog in order, then ready with the cursor', async () => {
-    const stream = open({ since: 1, events: range(1, 3) });
+  it('01 sends the backlog in order, page by page, then ready with the cursor', async () => {
+    const stream = open({ since: 1, events: range(1, 6) });
     await flush();
 
     expect(stream.messages.map((m) => [m.type, m.id])).toEqual([
       ['item.created', '2'],
       ['item.created', '3'],
-      ['ready', '3'],
+      ['item.created', '4'],
+      ['item.created', '5'],
+      ['item.created', '6'],
+      ['ready', '6'],
     ]);
-    expect(stream.messages[2]).toMatchObject({ data: { cursor: 3 }, retry: 2000 });
+    expect(stream.messages.at(-1)).toMatchObject({ data: { cursor: 6 }, retry: 2000 });
     stream.subscription.unsubscribe();
   });
 
@@ -92,11 +96,20 @@ describe('U-LST live stream', () => {
     expect(stream.state.completed).toBe(true);
   });
 
-  it('03 asks for a resync when the backlog has been pruned', async () => {
+  it('03 asks for a resync when the oldest missed events have been pruned', async () => {
     const stream = open({ since: 0, head: 5, events: range(3, 5) });
     await flush();
 
     expect(stream.messages.at(-1)).toMatchObject({ type: 'resync', data: { reason: 'cursor_expired' } });
+    expect(stream.state.completed).toBe(true);
+  });
+
+  it('03b asks for a resync when the newest missed events are missing from the log', async () => {
+    const stream = open({ since: 0, head: 5, events: range(1, 2) });
+    await flush();
+
+    expect(types(stream.messages)).toEqual(['item.created', 'item.created', 'resync']);
+    expect(stream.messages.at(-1)).toMatchObject({ data: { reason: 'cursor_expired' } });
     expect(stream.state.completed).toBe(true);
   });
 
@@ -187,6 +200,39 @@ describe('U-LST live stream', () => {
     await vi.advanceTimersByTimeAsync(REVALIDATE_MS * 2);
     expect(revalidate).not.toHaveBeenCalled();
     anonymous.subscription.unsubscribe();
+  });
+
+  it('10b keeps the stream open while the login or seat is unchanged', async () => {
+    const guestViewer: Viewer = { kind: 'guest', tableSessionId: 2, tableId: 1 };
+
+    for (const [viewer, revalidate] of [
+      [staff('BAR'), vi.fn().mockResolvedValue(staff('BAR'))],
+      // Moving table does not change the scope: the guest belongs to the session.
+      [guestViewer, vi.fn().mockResolvedValue({ ...guestViewer, tableId: 7 })],
+      // A failed check is not a reason to drop the client.
+      [staff('BAR'), vi.fn().mockRejectedValue(new Error('database down'))],
+    ] as const) {
+      const stream = open({ since: 0, viewer, revalidate });
+      await flush();
+      await vi.advanceTimersByTimeAsync(REVALIDATE_MS * 2);
+
+      expect(revalidate).toHaveBeenCalledTimes(2);
+      expect(stream.state.completed).toBe(false);
+      expect(types(stream.messages)).not.toContain('resync');
+      stream.subscription.unsubscribe();
+    }
+  });
+
+  it('10c asks a guest to resync when their cookie names another session', async () => {
+    const stream = open({
+      since: 0,
+      viewer: { kind: 'guest', tableSessionId: 2, tableId: 1 },
+      revalidate: vi.fn().mockResolvedValue({ kind: 'guest', tableSessionId: 3, tableId: 1 }),
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(REVALIDATE_MS);
+
+    expect(stream.messages.at(-1)).toMatchObject({ type: 'resync', data: { reason: 'scope_changed' } });
   });
 
   it('11 stops its timers and leaves the feed when unsubscribed', async () => {

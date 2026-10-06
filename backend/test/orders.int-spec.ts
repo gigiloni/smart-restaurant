@@ -41,33 +41,28 @@ describe('I-ORD orders', () => {
     expect(second.tableSessionId).toBe(first.tableSessionId);
   });
 
-  it('03 creates no order when a product is unknown', async () => {
+  it.each([
+    ['a product', { items: [{ productId: 999999 }] }],
+    ['an employee', { employeeId: 999999 }],
+  ])('03 places nothing and seats nobody when %s is unknown', async (_, payload) => {
     const table = await t.fixtures.table();
     const before = await count('Order');
     const head = await eventHead();
 
-    const response = await t.http.post('/api/orders', { tableId: table.id, items: [{ productId: 999999 }] });
+    const response = await t.http.post('/api/orders', { tableId: table.id, ...payload });
 
     expect(response.status).toBe(400);
     expect(await count('Order')).toBe(before);
-    expect(await eventTypesAfter(head)).not.toContain('order.created');
+    // A failed request writes no event, and the table is still free.
+    expect(await eventTypesAfter(head)).toEqual([]);
+    expect((await t.http.post('/api/table-sessions', { tableId: table.id })).status).toBe(201);
   });
 
-  // Current behaviour, not necessarily the desired one: the party is seated in
-  // a transaction of its own before the order is attempted.
-  it('03b leaves the table occupied after such a failed order', async () => {
-    const table = await t.fixtures.table();
-
-    await t.http.post('/api/orders', { tableId: table.id, items: [{ productId: 999999 }] });
-
-    expect((await t.http.post('/api/table-sessions', { tableId: table.id })).status).toBe(200);
-  });
-
-  it('04 answers 400 for an unknown table or employee', async () => {
-    const table = await t.fixtures.table();
+  it('04 answers 400 for an unknown table', async () => {
+    const head = await eventHead();
 
     expect((await t.http.post('/api/orders', { tableId: 999999 })).status).toBe(400);
-    expect((await t.http.post('/api/orders', { tableId: table.id, employeeId: 999999 })).status).toBe(400);
+    expect(await eventHead()).toBe(head);
   });
 
   it('05 pages through orders newest first', async () => {
@@ -174,5 +169,11 @@ describe('I-ORD orders', () => {
       (await waiter.api.post<Order>('/api/orders', { tableId: table.id, employeeId: null })).body.employeeId,
     ).toBeNull();
     expect((await admin.api.post<Order>('/api/orders', { tableId: table.id })).body.employeeId).toBeNull();
+  });
+
+  it('12 answers 404 for an unknown order', async () => {
+    expect((await t.http.get('/api/orders/999999')).status).toBe(404);
+    expect((await t.http.delete('/api/orders/999999')).status).toBe(404);
+    expect((await t.http.post('/api/orders/999999/close')).status).toBe(404);
   });
 });

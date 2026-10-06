@@ -17,9 +17,10 @@ describe('U-SV-TBL TablesService', () => {
   it('02 maps a duplicate table number to 409', async () => {
     const tables = service({ create: vi.fn().mockRejectedValue(prismaError('P2002')) });
 
-    await expect(tables.create({ tableNumber: 3, seats: 0 })).rejects.toThrow(
-      'Table number 3 is already taken',
-    );
+    const creating = tables.create({ tableNumber: 3, seats: 0 });
+
+    await expect(creating).rejects.toBeInstanceOf(ConflictException);
+    await expect(creating).rejects.toThrow('Table number 3 is already taken');
   });
 
   it('03 does not attempt to update an unknown table', async () => {

@@ -15,13 +15,19 @@ describe('U-SV-EMP EmployeesService', () => {
   it('01 maps a taken email to 409', async () => {
     const employees = service({ create: vi.fn().mockRejectedValue(prismaError('P2002')) });
 
-    await expect(employees.create(stub<CreateEmployeeDto>())).rejects.toThrow('Email is already in use');
+    const creating = employees.create(stub<CreateEmployeeDto>());
+
+    await expect(creating).rejects.toBeInstanceOf(ConflictException);
+    await expect(creating).rejects.toThrow('Email is already in use');
   });
 
   it('02 refuses a second login for the same employee', async () => {
     const employees = service({ findById: found(), provisionAccount: vi.fn().mockResolvedValue(null) });
 
-    await expect(employees.provisionAccount(1, login)).rejects.toThrow('already has a login');
+    const provisioning = employees.provisionAccount(1, login);
+
+    await expect(provisioning).rejects.toBeInstanceOf(ConflictException);
+    await expect(provisioning).rejects.toThrow('already has a login');
   });
 
   it('03 answers 404 when adding a login to an unknown employee', async () => {
@@ -33,13 +39,26 @@ describe('U-SV-EMP EmployeesService', () => {
   it('04 maps an employee with orders on delete to 409', async () => {
     const employees = service({ findById: found(), remove: vi.fn().mockRejectedValue(prismaError('P2003')) });
 
-    await expect(employees.remove(1)).rejects.toThrow('has taken at least one order');
+    const removing = employees.remove(1);
+
+    await expect(removing).rejects.toBeInstanceOf(ConflictException);
+    await expect(removing).rejects.toThrow('has taken at least one order');
   });
 
-  it("05 passes the repository's last-admin conflict through", async () => {
+  // The last-admin rule itself is in the repository: I-EMP-06 and I-CON-06.
+  it("05 passes the repository's conflicts through unchanged", async () => {
     const lastAdmin = new ConflictException('The last active admin cannot be demoted or deleted');
     const employees = service({ findById: found(), remove: vi.fn().mockRejectedValue(lastAdmin) });
 
     await expect(employees.remove(1)).rejects.toBe(lastAdmin);
+  });
+
+  it('06 maps a taken email to 409 when adding a login', async () => {
+    const employees = service({
+      findById: found(),
+      provisionAccount: vi.fn().mockRejectedValue(prismaError('P2002')),
+    });
+
+    await expect(employees.provisionAccount(1, login)).rejects.toThrow('Email is already in use');
   });
 });

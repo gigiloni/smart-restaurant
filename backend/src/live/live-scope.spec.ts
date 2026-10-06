@@ -62,8 +62,8 @@ describe('U-LS-02..05 everyone but the stations', () => {
     expect(scopeEvent(guest(2), logged('item.created', { session: 3 }))).toBeNull();
   });
 
-  it('never tells a guest who served them', () => {
-    const order = orderOf(scopeEvent(guest(2), logged('order.created')));
+  it.each(['order.created', 'order.updated', 'order.closed', 'order.deleted'] as const)('never tells a guest who served them (%s)', (type) => {
+    const order = orderOf(scopeEvent(guest(2), logged(type)));
 
     expect(order.employeeId).toBeNull();
     expect(order.employee).toBeNull();
@@ -81,11 +81,11 @@ describe('U-LS-06..08 kitchen and bar', () => {
     expect(scopeEvent(staff('BAR'), logged('item.status_changed', { productType: 'DRINK' }))).not.toBeNull();
   });
 
-  it('see orders with their items only', () => {
-    const order = orderOf(scopeEvent(staff('KITCHEN'), logged('order.created', { items: ['FOOD', 'DRINK'] })));
+  it.each(['order.created', 'order.updated', 'order.closed', 'order.deleted'] as const)('see orders with their items only (%s)', (type) => {
+    const order = orderOf(scopeEvent(staff('KITCHEN'), logged(type, { items: ['FOOD', 'DRINK'] })));
 
     expect(order.orderItems).toEqual([itemOf('FOOD')]);
-    expect(scopeEvent(staff('KITCHEN'), logged('order.created', { items: ['DRINK'] }))).toBeNull();
+    expect(scopeEvent(staff('KITCHEN'), logged(type, { items: ['DRINK'] }))).toBeNull();
   });
 
   it('never see tables opened or cleared, and moves only when they matter', () => {

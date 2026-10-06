@@ -460,8 +460,18 @@ The frontend sets up its own tests.
 Integration tests use their own database, `smart_restaurant_test`, on the
 PostgreSQL server from `compose.yml`. They create it on the first run, apply the
 migrations, and empty it at the start of every test file, so never point them
-at data you want to keep. They do not read `backend/.env`. To use another
-server, set `TEST_DATABASE_URL`; the database name must end in `_test`.
+at data you want to keep. A second run started meanwhile waits for the first to
+finish rather than emptying the database under it. The tests take their
+settings from `backend/test/support/env.ts`, not from `backend/.env`. To use
+another server, set `TEST_DATABASE_URL`; the database name must end in `_test`:
+
+```powershell
+$env:TEST_DATABASE_URL = 'postgresql://admin:admin@localhost:5433/smart_restaurant_test'
+pnpm nx run backend:test-integration
+```
+
+The application under test logs nothing. Set `TEST_LOG=1` the same way to see
+its log, for example the cause of an unexpected 500.
 
 Where the tests live:
 
@@ -472,9 +482,10 @@ Where the tests live:
   `main.ts` does (both call `configureApp()`), and `Fixtures` creates test data
   through the API.
 
-Test names start with an ID such as `I-ORD-08` (integration, orders, case 8) or
-`U-SV-ITM-03` (unit, service, order items), so a failing test is easy to find and
-to refer to.
+Each group of tests carries an ID such as `I-ORD` (integration, orders) or
+`U-SV-ITM` (unit, service, order items), and each case a number within it, as in
+`I-ORD 08 takes payment once everything is served`. A failing test is then easy
+to find and to refer to.
 
 ---
 

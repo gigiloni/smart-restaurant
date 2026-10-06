@@ -60,13 +60,15 @@ describe('U-GA-04..05 guest cookie', () => {
 
 describe('U-GA-06..08 resolving the cookie', () => {
   it('names the guest of an open session', async () => {
-    const service = guests(prismaFinding({ tableId: 3, closedAt: null }).prisma);
+    const { prisma, findUnique } = prismaFinding({ tableId: 3, closedAt: null });
+    const service = guests(prisma);
 
     await expect(service.resolve(`theme=dark; ${cookieValue(service, 5)}`)).resolves.toEqual({
       kind: 'guest',
       tableSessionId: 5,
       tableId: 3,
     });
+    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 5 } }));
   });
 
   it('stops working once the session is closed or gone', async () => {
@@ -92,6 +94,9 @@ describe('U-GA-06..08 resolving the cookie', () => {
       'sr_guest=-5.x',
       `sr_guest=6.${macOfSession5}`,
       'sr_guest=5.forged',
+      // A table's QR token is a MAC too, but of a different message: it must
+      // not double as the cookie of the session with the same number.
+      `sr_guest=5.${service.tableToken(5)}`,
     ]) {
       await expect(service.resolve(header)).resolves.toBeNull();
     }

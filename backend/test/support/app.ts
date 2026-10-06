@@ -9,14 +9,15 @@ import { configureApp } from '../../src/app/configure-app.js';
  *
  * Requests normally go through `app.inject()`, which needs no socket. Pass
  * `listen: true` for the live stream: an SSE response never ends, so it has to
- * be read from a real connection.
+ * be read from a real connection (see `openSse`).
  */
 export async function createTestApp(
   options: { listen?: boolean } = {},
 ): Promise<NestFastifyApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  // Quiet by default; TEST_LOG=1 shows the application log, e.g. the cause of a 500.
   const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
-    logger: false,
+    logger: process.env.TEST_LOG ? undefined : false,
   });
 
   configureApp(app);

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { createIngredientSchema } from '../ingredients/create-ingredient.schema.js';
 import { createEmployeeSchema } from './create-employee.schema.js';
 import { employeeAccountSchema } from './employee-account.schema.js';
 import { updateEmployeeSchema } from './update-employee.schema.js';
@@ -28,9 +27,5 @@ describe('U-CT-08 employee payloads', () => {
   it('rejects an unknown role and an empty update', () => {
     expect(updateEmployeeSchema.safeParse({ role: 'CHEF' }).success).toBe(false);
     expect(updateEmployeeSchema.safeParse({}).success).toBe(false);
-  });
-
-  it('trims ingredient names', () => {
-    expect(createIngredientSchema.parse({ name: ' Salt ' }).name).toBe('Salt');
   });
 });

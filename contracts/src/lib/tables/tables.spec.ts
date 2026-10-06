@@ -19,8 +19,9 @@ describe('U-CT-06 table payloads', () => {
     expect(updateTableSchema.safeParse({}).success).toBe(false);
   });
 
-  // The assignment asks for 2 to 8 seats; the API does not enforce a range yet.
-  it('accepts any non-negative seat count', () => {
+  // Known gap: the assignment asks for 2 to 8 seats, but no range is enforced
+  // yet. Replace this case with the range once the team decides on it.
+  it('accepts any non-negative seat count (no 2-8 range yet)', () => {
     expect(createTableSchema.safeParse({ tableNumber: 1, seats: 100 }).success).toBe(true);
   });
 });

@@ -26,6 +26,15 @@ describe('I-ING ingredients', () => {
     expect((await t.http.get(url)).status).toBe(404);
   });
 
+  it('03 answers 404 for unknown ingredients and 400 for an empty update', async () => {
+    const ingredient = await t.fixtures.ingredient();
+
+    expect((await t.http.get('/api/ingredients/999999')).status).toBe(404);
+    expect((await t.http.patch('/api/ingredients/999999', { name: 'X' })).status).toBe(404);
+    expect((await t.http.delete('/api/ingredients/999999')).status).toBe(404);
+    expect((await t.http.patch(`/api/ingredients/${ingredient.id}`, {})).status).toBe(400);
+  });
+
   it('02 keeps an ingredient a recipe uses', async () => {
     const used = await t.fixtures.ingredient();
     await t.fixtures.product('FOOD', { ingredients: [{ ingredientId: used.id, amount: 1 }] });
@@ -161,5 +170,14 @@ describe('I-PRD products', () => {
     await t.fixtures.table();
 
     expect(await eventHead()).toBe(head);
+  });
+
+  it('10 answers 404 for unknown products and 400 for too many ids', async () => {
+    expect((await t.http.get('/api/products/999999')).status).toBe(404);
+    expect((await t.http.patch('/api/products/999999', { price: 1 })).status).toBe(404);
+    expect((await t.http.delete('/api/products/999999')).status).toBe(404);
+
+    const tooMany = Array.from({ length: 101 }, (_, i) => i + 1);
+    expect((await t.http.post('/api/products-by-id', { ids: tooMany })).status).toBe(400);
   });
 });

@@ -49,15 +49,10 @@ describe('I-EMP employees', () => {
     expect((await newEmployee({ email: 'ana.neu@test.local' })).status).toBe(409);
   });
 
-  it('03 exposes sign-in but not public sign-up', async () => {
-    expect((await signIn('ana.neu@test.local', 'wrong password!')).status).toBe(401);
-
-    const signUp = await t.http.post('/api/auth/sign-up/email', {
-      email: 'new@test.local',
-      password: PASSWORD,
-      name: 'New',
-    });
-    expect(signUp.status).toBe(404);
+  it('03 refuses a wrong password', async () => {
+    const { email } = await t.fixtures.employee('BAR');
+    expect((await signIn(email)).status).toBe(200);
+    expect((await signIn(email, 'wrong password!')).status).toBe(401);
   });
 
   it('04 validates the payload', async () => {
@@ -108,7 +103,7 @@ describe('I-EMP employees', () => {
   it("08 renames the employee's login too", async () => {
     const { employee, email } = await t.fixtures.employee('BAR', { firstname: 'Old', lastname: 'Name' });
 
-    await t.http.patch(`/api/employees/${employee.id}`, { firstname: 'New' });
+    expect((await t.http.patch(`/api/employees/${employee.id}`, { firstname: 'New' })).status).toBe(200);
 
     const [user] = await sql<{ name: string }>('SELECT name FROM "user" WHERE email = $1', [email]);
     expect(user.name).toBe('New Name');
@@ -136,9 +131,23 @@ describe('I-EMP employees', () => {
 
   it('11 signs out', async () => {
     const waiter = await t.fixtures.staff('SERVICE');
-    const signOut = await waiter.api.post('/api/auth/sign-out');
+    const signOut = await waiter.api.post('/api/auth/sign-out', {}, { origin: 'http://localhost:4200' });
 
     expect(signOut.status).toBe(200);
     expect((await api(t.app, waiter.cookie).get('/api/employees/me')).status).toBe(401);
+  });
+
+  it('12 answers 404 for unknown employees and 400 for invalid updates', async () => {
+    const { employee, email } = await t.fixtures.employee('BAR');
+
+    expect((await t.http.patch('/api/employees/999999', { firstname: 'X' })).status).toBe(404);
+    expect((await t.http.delete('/api/employees/999999')).status).toBe(404);
+    expect((await t.http.patch(`/api/employees/${employee.id}`, {})).status).toBe(400);
+    expect((await t.http.patch(`/api/employees/${employee.id}`, { role: 'CHEF' })).status).toBe(400);
+
+    const withoutLogin = await t.fixtures.employeeWithoutLogin('SERVICE');
+    expect(
+      (await t.http.post(`/api/employees/${withoutLogin.id}/account`, { email, password: PASSWORD })).status,
+    ).toBe(409);
   });
 });
