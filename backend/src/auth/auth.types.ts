@@ -10,11 +10,8 @@ export type AuthenticatedEmployee = {
 export type AuthenticatedRequest = {
   method: string;
   headers: IncomingHttpHeaders;
-  /**
-   * Set for staff only. On routes marked `@AllowGuests()` or
-   * `@AllowAnonymous()` it is undefined for guests; read `viewer` there.
-   */
-  employee: AuthenticatedEmployee;
-  /** Who is asking. Undefined only on `@AllowAnonymous()` routes. */
-  viewer: Viewer;
+  /** The signed-in member of staff; undefined for guests and anonymous callers. */
+  employee?: AuthenticatedEmployee;
+  /** Who is asking: staff or a seated guest. Undefined for anonymous callers. */
+  viewer?: Viewer;
 };

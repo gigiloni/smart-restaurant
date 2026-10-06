@@ -14,7 +14,6 @@ import {
   type EnterAsGuestDto,
 } from '@smart-restaurant/contracts';
 
-import { AllowAnonymous, AllowGuests } from '../auth/access-metadata.js';
 import { CurrentViewer } from '../auth/current-viewer.decorator.js';
 import { GuestAccessService } from '../auth/guest-access.service.js';
 import type { Viewer } from '../auth/viewer.types.js';
@@ -36,20 +35,18 @@ export class ViewerController {
   ) {}
 
   @Get()
-  @AllowGuests()
   @ApiOperation({
     summary: 'Who am I',
     description:
       'Returns who the request is from: a signed-in member of staff with their role, or a guest with the table session they joined. ' +
-      'Guests get 401 here once service has cleared their table, which is how the guest app learns the visit is over.',
+      'Returns `null` for an anonymous caller, and for a guest once service has cleared their table: that is how the guest app learns the visit is over.',
   })
-  @ApiOkResponse({ description: 'The caller.', standardSchema: viewerSchema })
-  whoAmI(@CurrentViewer() viewer: Viewer) {
-    return viewer;
+  @ApiOkResponse({ description: 'The caller, or null.', standardSchema: viewerSchema })
+  whoAmI(@CurrentViewer() viewer: Viewer | undefined) {
+    return viewer ?? null;
   }
 
   @Post('guest')
-  @AllowAnonymous()
   @ApiOperation({
     summary: 'Enter as a guest by QR code',
     description:

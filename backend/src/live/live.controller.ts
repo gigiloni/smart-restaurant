@@ -17,7 +17,6 @@ import {
   type LiveEventsQuery,
 } from '@smart-restaurant/contracts';
 
-import { AllowGuests } from '../auth/access-metadata.js';
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
 import { CurrentViewer } from '../auth/current-viewer.decorator.js';
 import { ViewerResolver } from '../auth/viewer-resolver.service.js';
@@ -41,13 +40,12 @@ export class LiveController {
   ) {}
 
   @Get('snapshot')
-  @AllowGuests()
   @ApiOperation({
     summary: 'Load the live state',
     description:
       'Returns the table sessions and orders the caller may see, read in one consistent snapshot, and the `cursor` of the last change it reflects. ' +
       'Load this first, then open `GET /live/events?since=<cursor>`.\n\n' +
-      '- **SERVICE, ADMIN**: every open session and all of its orders, paid ones included.\n' +
+      '- **Anonymous callers, SERVICE, ADMIN**: every open session and all of its orders, paid ones included.\n' +
       '- **KITCHEN**: open orders holding at least one APPETIZER or FOOD item, with only those items, and their sessions.\n' +
       '- **BAR**: the same for DRINK items.\n' +
       '- **Guests**: their own session and all of its orders. `employeeId` and `employee` are always null.',
@@ -56,12 +54,11 @@ export class LiveController {
     description: 'The live state and its cursor.',
     standardSchema: liveSnapshotSchema,
   })
-  snapshot(@CurrentViewer() viewer: Viewer) {
+  snapshot(@CurrentViewer() viewer: Viewer | undefined) {
     return this.liveService.snapshot(viewer);
   }
 
   @Sse('events')
-  @AllowGuests()
   @ApiProduces('text/event-stream')
   @ApiOperation({
     summary: 'Stream live changes (SSE)',
@@ -93,7 +90,7 @@ export class LiveController {
   events(
     @Query({ schema: liveEventsQuerySchema }) query: LiveEventsQuery,
     @Headers('last-event-id') lastEventId: string | undefined,
-    @CurrentViewer() viewer: Viewer,
+    @CurrentViewer() viewer: Viewer | undefined,
     @Req() request: AuthenticatedRequest,
   ): Observable<MessageEvent> {
     const since = this.startingPoint(query.since, lastEventId);

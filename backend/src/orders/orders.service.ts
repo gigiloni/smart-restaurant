@@ -149,7 +149,7 @@ export class OrdersService {
     return created;
   }
 
-  async update(id: number, dto: UpdateOrderDto, by: OrderChange): Promise<OrderWithDetails> {
+  async update(id: number, dto: UpdateOrderDto, by: OrderChange = {}): Promise<OrderWithDetails> {
     try {
       return await this.updateOpenOrder(id, dto, by);
     } catch (error) {
@@ -178,7 +178,7 @@ export class OrdersService {
    * retried request is safe.
    */
   @Transactional()
-  async close(id: number, by: OrderChange): Promise<OrderWithDetails> {
+  async close(id: number, by: OrderChange = {}): Promise<OrderWithDetails> {
     const order = await this.orderLock.forChange(id, { ...by, allowClosed: true });
 
     if (order.status === 'CLOSED') {
@@ -201,7 +201,7 @@ export class OrdersService {
   }
 
   @Transactional()
-  async remove(id: number, by: OrderChange): Promise<OrderWithDetails> {
+  async remove(id: number, by: OrderChange = {}): Promise<OrderWithDetails> {
     await this.orderLock.forChange(id, by);
 
     // The delete returns the order with its items as they were, and the
