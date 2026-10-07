@@ -457,13 +457,17 @@ The frontend sets up its own tests.
 | `pnpm nx run backend:test-integration` | The whole API over HTTP against a real database, including the live stream and concurrent requests | PostgreSQL |
 | `pnpm nx run backend:typecheck` | Type-checks the test code, which Vitest itself does not | nothing |
 
-Integration tests use their own database, `smart_restaurant_test`, on the
-PostgreSQL server from `compose.yml`. They create it on the first run, apply the
-migrations, and empty it at the start of every test file, so never point them
-at data you want to keep. A second run started meanwhile waits for the first to
-finish rather than emptying the database under it. The tests take their
-settings from `backend/test/support/env.ts`, not from `backend/.env`. To use
-another server, set `TEST_DATABASE_URL`; the database name must end in `_test`:
+Integration tests use their own database next to the development one: the
+server, user and password of your `DATABASE_URL`, with `_test` appended to the
+database name (`smart_restaurant_test` by default). `DATABASE_URL` is read from
+the environment, `.env` in the repository root or `backend/.env`; if both files
+set it differently, the tests stop and ask you to decide. They create
+it on the first run, which needs the `CREATEDB` right (the `compose.yml` user has
+it), apply the migrations, and empty it at the start of every test file, so
+never point them at data you want to keep. A second run started meanwhile waits
+for the first to finish rather than emptying the database under it. Everything
+else they need is fixed in `backend/test/support/env.ts`. To use another
+database, set `TEST_DATABASE_URL`; its name must end in `_test`:
 
 ```powershell
 $env:TEST_DATABASE_URL = 'postgresql://admin:admin@localhost:5433/smart_restaurant_test'
