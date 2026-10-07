@@ -4,10 +4,13 @@ import { Product } from '@smart-restaurant/contracts';
 import { ProductService } from '../../../../services/product-service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MessageService } from 'primeng/api';
+import { Button } from 'primeng/button';
+import { CurrencyPipe } from '@angular/common';
+import { Image } from 'primeng/image';
 
 @Component({
   selector: 'app-hauptgaenge',
-  imports: [DataViewModule],
+  imports: [DataViewModule, Button, CurrencyPipe, Image],
   templateUrl: './hauptgaenge.html',
   styleUrl: './hauptgaenge.css',
 })
@@ -34,5 +37,9 @@ export class Hauptgaenge {
           });
         },
       });
+  }
+
+  save(id: number): void {
+    console.log(id);
   }
 }
