@@ -10,6 +10,7 @@ allowBuilds:
   unrs-resolver: true
   workerd: true
   '@nestjs/core': false
+  '@swc/core': true
   less: true
   lmdb: true
   '@prisma/engines': true

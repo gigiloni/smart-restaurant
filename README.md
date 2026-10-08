@@ -444,6 +444,58 @@ references that block a delete with `409`.
 
 ---
 
+## Tests
+
+The backend and the shared contracts are tested with [Vitest](https://vitest.dev/).
+The frontend sets up its own tests.
+
+| Command | Runs | Needs |
+| --- | --- | --- |
+| `pnpm test` | Everything below | PostgreSQL |
+| `pnpm nx test contracts` | Unit tests of the shared rules and schemas | nothing |
+| `pnpm nx run backend:test-unit` | Backend unit tests: services, auth, live updates, with their collaborators mocked | nothing |
+| `pnpm nx run backend:test-integration` | The whole API over HTTP against a real database, including the live stream and concurrent requests | PostgreSQL |
+| `pnpm nx run backend:typecheck` | Type-checks the test code, which Vitest itself does not | nothing |
+
+Integration tests use their own database next to the development one: the
+server, user and password of your `DATABASE_URL`, with `_test` appended to the
+database name (`smart_restaurant_test` by default). `DATABASE_URL` is read from
+the environment, `.env` in the repository root or `backend/.env`; if both files
+set it differently, the tests stop and ask you to decide. They create
+it on the first run, which needs the `CREATEDB` right (the `compose.yml` user has
+it), apply the migrations, and empty it at the start of every test file, so
+never point them at data you want to keep. A second run started meanwhile waits
+for the first to finish rather than emptying the database under it. Everything
+else they need is fixed in `backend/test/support/env.ts`. To use another
+database, set `TEST_DATABASE_URL`; its name must end in `_test`:
+
+```powershell
+$env:TEST_DATABASE_URL = 'postgresql://admin:admin@localhost:5433/smart_restaurant_test'
+pnpm nx run backend:test-integration
+```
+
+The application under test logs nothing. Set `TEST_LOG=1` the same way to see
+its log, for example the cause of an unexpected 500.
+
+Where the tests live:
+
+- Unit tests sit next to the code they test, as `*.spec.ts`, in
+  `backend/src/` and `contracts/src/`.
+- Integration tests are `backend/test/*.int-spec.ts`. Their helpers are in
+  `backend/test/support/`: `createTestApp()` builds the application exactly as
+  `main.ts` does (both call `configureApp()`), and `Fixtures` creates test data
+  through the API.
+
+Each group of tests carries an ID such as `I-ORD` (integration, orders) or
+`U-SV-ITM` (unit, service, order items), and each case a number within it, as in
+`I-ORD 08 takes payment once everything is served`. A failing test is then easy
+to find and to refer to.
+
+What the suite covers, how it was verified, what it found, and the list of
+every case: [`docs/backend-test-plan.md`](docs/backend-test-plan.md).
+
+---
+
 ## API resources
 
 All routes are served under the `/api` prefix and validated against the Zod

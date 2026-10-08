@@ -13,7 +13,16 @@ import { Prisma } from '../generated/prisma/client.js';
 
 export const orderDetailsInclude = {
   table: true,
-  employee: true,
+
+  // The public fields only, as `/employees` returns them: not the login id.
+  employee: {
+    select: {
+      id: true,
+      firstname: true,
+      lastname: true,
+      role: true,
+    },
+  },
 
   orderItems: {
     include: {
@@ -93,6 +102,17 @@ export class OrdersRepository {
 
       include: orderDetailsInclude,
     });
+  }
+
+  /** Whether the employee (unless null) and every one of the distinct `productIds` exist. */
+  async referencesExist(employeeId: number | null, productIds: number[]): Promise<boolean> {
+    const employees =
+      employeeId === null ? 1 : await this.db.employee.count({ where: { id: employeeId } });
+    const products = productIds.length
+      ? await this.db.product.count({ where: { id: { in: productIds } } })
+      : 0;
+
+    return employees === 1 && products === productIds.length;
   }
 
   async tableNumberOf(tableId: number): Promise<number> {

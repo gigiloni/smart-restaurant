@@ -20,6 +20,12 @@ export class AuthService {
         config.getOrThrow<string>('auth.url'),
         ...(frontendUrl ? [frontendUrl] : []),
       ],
+      // Better Auth skips its origin and CSRF checks when it thinks it runs
+      // under test (NODE_ENV=test, or TEST set, as Vitest does). Keep them on
+      // everywhere, so the tests exercise what production runs.
+      advanced: {
+        disableOriginCheck: false,
+      },
       emailAndPassword: {
         enabled: true,
         autoSignIn: false,

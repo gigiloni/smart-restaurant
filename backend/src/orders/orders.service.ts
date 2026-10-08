@@ -18,6 +18,8 @@ import { TableSessionsService } from '../table-sessions/table-sessions.service.j
 import { OrderLock, type OrderChange } from './order-lock.js';
 import { OrdersRepository, type OrderWithDetails } from './orders.repository.js';
 
+const UNKNOWN_REFERENCE = 'One or more of the referenced table, employee or products do not exist';
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -53,10 +55,14 @@ export class OrdersService {
    * cleared twice within a single request is reported instead.
    *
    * Seating and placing are two transactions, so this must not run inside
-   * another one (`Propagation.Never` enforces that).
+   * another one (`Propagation.Never` enforces that). That is also why the
+   * employee and the products are checked before anyone is seated: an order
+   * that is refused must not leave its table occupied.
    */
   @Transactional(Propagation.Never)
   async create({ tableId, ...dto }: CreateOrderDto): Promise<OrderWithDetails> {
+    await this.requireReferences(dto);
+
     for (let attempt = 1; ; attempt++) {
       const { session } = await this.tableSessionsService.openOrJoin(tableId);
 
@@ -215,6 +221,18 @@ export class OrdersService {
   }
 
   /**
+   * Rejects an order whose employee or products do not exist. The foreign keys
+   * would catch them too, but only after the party has been seated.
+   */
+  private async requireReferences({ employeeId, items }: Omit<CreateOrderDto, 'tableId'>) {
+    const productIds = [...new Set(items?.map((item) => item.productId) ?? [])];
+
+    if (!(await this.ordersRepository.referencesExist(employeeId ?? null, productIds))) {
+      throw new BadRequestException(UNKNOWN_REFERENCE);
+    }
+  }
+
+  /**
    * An order points at a table, an employee and — through its items — at
    * products. A missing one of those is a bad payload, not a missing order.
    */
@@ -223,9 +241,7 @@ export class OrdersService {
       isPrismaError(error, PrismaErrorCode.ForeignKeyConstraintViolation) ||
       isPrismaError(error, PrismaErrorCode.RecordNotFound)
     ) {
-      return new BadRequestException(
-        'One or more of the referenced table, employee or products do not exist',
-      );
+      return new BadRequestException(UNKNOWN_REFERENCE);
     }
 
     return error;
