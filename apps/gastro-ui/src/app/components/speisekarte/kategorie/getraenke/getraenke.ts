@@ -1,6 +1,9 @@
-import { Component, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { DataViewModule } from 'primeng/dataview';
-import { Product } from '../../../../interfaces/product';
+import { Product } from '@smart-restaurant/contracts';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ProductService } from '../../../../services/product-service';
+import { MessageService } from 'primeng/api';
 
 @Component({
   selector: 'app-getraenke',
@@ -9,13 +12,27 @@ import { Product } from '../../../../interfaces/product';
   styleUrl: './getraenke.css',
 })
 export class Getraenke {
-  produkte = signal<Product[]>([]);
+  signalGetraenke = signal<Product[]>([]);
+
+  private productService: ProductService = inject(ProductService);
+  private destroyRef: DestroyRef = inject(DestroyRef);
+  private messageService = inject(MessageService);
 
   constructor() {
-    this.produkte.set([
-      { id: 1, name: 'spagetti', description: 'Spaghetti al Pomodoro San Marzano', price: 24 },
-      { id: 2, name: 'tagliatelle', description: 'Tagliatelle al Ragù della Casa', price: 29 },
-      { id: 3, name: 'involtini', description: 'Involtini di Melanzane alla Siciliana', price: 26 },
-    ]);
+    this.productService
+      .getProducts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (products: Product[]) => {
+          this.signalGetraenke.set(products.filter((product) => product.type === 'DRINK'));
+        },
+        error: (error) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Fehler',
+            detail: 'Die Methode getProducts() in Kategorie/Getränke.',
+          });
+        },
+      });
   }
 }

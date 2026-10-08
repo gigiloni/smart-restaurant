@@ -1,9 +1,12 @@
-import { Component, signal } from '@angular/core';
-import { Product } from '../../../../interfaces/product';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Product } from '@smart-restaurant/contracts';
 import { DataViewModule } from 'primeng/dataview';
 import { ImageModule } from 'primeng/image';
 import { ButtonModule } from 'primeng/button';
 import { CurrencyPipe } from '@angular/common';
+import { ProductService } from '../../../../services/product-service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MessageService } from 'primeng/api';
 
 @Component({
   selector: 'app-vorspeisen',
@@ -12,29 +15,28 @@ import { CurrencyPipe } from '@angular/common';
   styleUrl: './vorspeisen.css',
 })
 export class Vorspeisen {
-  products = signal<Product[]>([]);
+  signalVorspeisen = signal<Product[]>([]);
+
+  private productService: ProductService = inject(ProductService);
+  private destroyRef: DestroyRef = inject(DestroyRef);
+  private messageService = inject(MessageService);
 
   constructor() {
-    this.products.set([
-      {
-        id: 232,
-        name: 'spagetti',
-        description: 'Spaghetti al Pomodoro San Marzano',
-        price: 24,
-      },
-      {
-        id: 545,
-        name: 'tagliatelle',
-        description: 'Tagliatelle al Ragù della Casa',
-        price: 29,
-      },
-      {
-        id: 171,
-        name: 'involtini',
-        description: 'Involtini di Melanzane alla Siciliana',
-        price: 26,
-      },
-    ]);
+    this.productService
+      .getProducts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (products: Product[]) => {
+          this.signalVorspeisen.set(products.filter((product) => product.type === 'APPETIZER'));
+        },
+        error: (error) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Fehler',
+            detail: 'Die Methode getProducts() in Kategorie/Vorspeisen.',
+          });
+        },
+      });
   }
 
   save(id: number): void {
