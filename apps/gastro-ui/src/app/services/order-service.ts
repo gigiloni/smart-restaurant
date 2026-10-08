@@ -3,6 +3,7 @@ import {inject, Injectable} from "@angular/core";
 import {CreateOrderDto} from "@smart-restaurant/contracts";
 import {TableService} from "./table-service";
 import {MessageService} from "primeng/api";
+import {ProductService} from "./product-service";
 
 @Injectable({
   providedIn: 'root',
@@ -10,37 +11,46 @@ import {MessageService} from "primeng/api";
 export class OrderService {
   protected http = inject(HttpClient);
   protected tableService = inject(TableService)
+  protected productService = inject(ProductService)
   protected messageService = inject(MessageService)
 
   createOrder(orderItemIdList: number[]) {
-    let selectedTableId = this.tableService.selectedTable()?.id;
-    if (!selectedTableId) throw "Tisch konnte nicht gefunden werden.";
-    let createOrderItemList: { productId: number; }[] = [];
+    // let selectedTableId = this.tableService.selectedTable()?.id;
+    // if (!selectedTableId) throw "Tisch konnte nicht gefunden werden.";
+    // let createOrderItemList: { productId: number; }[] = [];
+    //
+    // for (let itemId of orderItemIdList) {
+    //   createOrderItemList.push({
+    //     productId: itemId,
+    //   })
+    // }
+    //
+    // let createOrderDto: CreateOrderDto = {
+    //   tableId: selectedTableId,
+    //   items: createOrderItemList,
+    // }
+    //
+    // this.http.post('/orders', createOrderDto).subscribe({
+    //   next: () => {
+    //     this.messageService.add({
+    //       summary: 'Bestellung wurde aufgegeben.',
+    //       severity: 'success',
+    //     })
+    //   },
+    //   error: () => {
+    //     this.messageService.add({
+    //       summary: 'Bestellung konnte nicht aufgegeben werden.',
+    //       severity: 'error',
+    //     })
+    //   }
+    // })
 
-    for (let itemId of orderItemIdList) {
-      createOrderItemList.push({
-        productId: itemId,
-      })
-    }
+    this.messageService.add({
+            summary: 'Bestellung wurde aufgegeben.',
+            severity: 'success',
+          })
 
-    let createOrderDto: CreateOrderDto = {
-      tableId: selectedTableId,
-      items: createOrderItemList,
-    }
-
-    this.http.post('/orders', createOrderDto).subscribe({
-      next: () => {
-        this.messageService.add({
-          summary: 'Bestellung wurde aufgegeben.',
-          severity: 'success',
-        })
-      },
-      error: () => {
-        this.messageService.add({
-          summary: 'Bestellung konnte nicht aufgegeben werden.',
-          severity: 'error',
-        })
-      }
-    })
+    this.productService.productsInWarenkorb.set([])
+    sessionStorage.setItem("warenkorb", "[]")
   }
 }

@@ -1,13 +1,17 @@
-<div class="w-full flex flex-col justify-center">
-  <h2>Warenkorb</h2>
+<div class="w-full flex flex-col justify-center items-center pt-20">
+  <h2 class="mb-8">Warenkorb</h2>
 
-  <p-dataView [value]="productService.productsInWarenkorb()">
+  <p-dataView [value]="productService.productsInWarenkorb()" class="w-[60%] mb-8">
     <ng-template #list let-products>
       <div class="grid grid-cols-1 gap-6">
         @for (product of products; track product.id) {
           <div class="grid grid-cols-5 rounded-2xl border">
             <div class="col-span-1">
-              <p-image [preview]="true" alt="Image" src="/dishes/{{ product.title }}.jpg" />
+              <p-image
+                [preview]="true"
+                alt="{{ product.name }}"
+                src="/dishes/{{ product.name }}.jpg"
+              ></p-image>
             </div>
             <div class="col-span-4 grid grid-cols-1 gap-4 p-4">
               <div class="flex justify-between">
@@ -20,14 +24,22 @@
                 Zutaten: Spaghetti, San-Marzano-Tomaten, natives Olivenöl extra, Knoblauch, Basilikum,
                 Parmigiano Reggiano, Meersalz.
               </p>
-<!--              <p-button (onClick)="removeFromWarenkorb(product.id)">-->
-<!--                <p class="text-sm!">Aus Warenkorb entfernen</p>-->
-<!--              </p-button>-->
+              <p-button (onClick)="removeFromWarenkorb(product.id)">
+                <p class="text-sm!">Aus Warenkorb entfernen</p>
+              </p-button>
             </div>
           </div>
         }
       </div>
     </ng-template>
   </p-dataView>
+
+  <p-button
+    (onClick)="createOrder()"
+    label="Bestellen"
+    class="w-[40%]"
+  >
+
+  </p-button>
 
 </div>

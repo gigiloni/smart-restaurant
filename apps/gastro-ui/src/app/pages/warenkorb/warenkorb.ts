@@ -13,7 +13,8 @@ import {Image} from "primeng/image";
   imports: [
     DataView,
     CurrencyPipe,
-    Image
+    Image,
+    Button
   ],
   templateUrl: './warenkorb.html',
   styleUrl: './warenkorb.css',
@@ -28,7 +29,7 @@ export class Warenkorb implements OnInit, AfterViewInit {
   private itemsInWarenkorb = false;
 
   constructor() {
-    sessionStorage.setItem('warenkorb', '[1,5,10]');
+    // sessionStorage.setItem('warenkorb', '[1,5,10]');
   }
 
   ngOnInit() {
@@ -59,4 +60,14 @@ export class Warenkorb implements OnInit, AfterViewInit {
     this.orderService.createOrder(this.orderItemIdList)
   }
 
+  removeFromWarenkorb(id: number) {
+    this.orderItemIdList = this.orderItemIdList.filter(itemId => itemId !== id);
+
+    this.productService.productsInWarenkorb.update(products =>
+      products.filter(product => product.id !== id)
+    );
+
+    sessionStorage.setItem('warenkorb', JSON.stringify(this.orderItemIdList));
+    this.itemsInWarenkorb = this.orderItemIdList.length > 0;
+  }
 }
