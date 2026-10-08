@@ -4,10 +4,13 @@ import { Product } from '@smart-restaurant/contracts';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ProductService } from '../../../../services/product-service';
 import { MessageService } from 'primeng/api';
+import { Button } from 'primeng/button';
+import { CurrencyPipe } from '@angular/common';
+import { Image } from 'primeng/image';
 
 @Component({
   selector: 'app-getraenke',
-  imports: [DataViewModule],
+  imports: [DataViewModule, Button, CurrencyPipe, Image],
   templateUrl: './getraenke.html',
   styleUrl: './getraenke.css',
 })
@@ -34,5 +37,9 @@ export class Getraenke {
           });
         },
       });
+  }
+
+  save(product: Product): void {
+    this.productService.productsInWarenkorb.update(products => [...products, product]);
   }
 }

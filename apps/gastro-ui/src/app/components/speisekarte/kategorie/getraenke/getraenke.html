@@ -1,7 +1,36 @@
 <p-dataview [value]="signalGetraenke()">
-  <ng-template #list let-produkte>
-    @for (produkt of produkte; track produkt.id) {
-      <div>{{ produkt.name }}</div>
-    }
+  <ng-template #list let-products>
+    <div class="grid grid-cols-1 gap-6">
+      @for (product of products; track product.id) {
+        <div class="grid grid-cols-5 rounded-2xl border">
+          <div class="col-span-1 flex border-r">
+            <p-image
+              [preview]="true"
+              alt="{{ product.name }}"
+              src="/dishes/{{ product.name }}.jpg"
+            ></p-image>
+          </div>
+          <div class="col-span-4 grid grid-cols-1 gap-4 p-4">
+            <div class="flex justify-between">
+              <p class="font-bold!">{{ product.description }}</p>
+              <p class="font-bold!">
+                {{ product.price | currency: 'EUR' : 'symbol' : '1.2-2' : 'de-DE' }}
+              </p>
+            </div>
+            <div class="flex">
+              @if (product.ingredients.lenght > 0) {
+                Zutaten: @for (ingredient of product.ingredients; track ingredient.ingredientId; let
+                  last = $last) {
+                  {{ ingredient.ingredient.name }}{{ last ? '' : ', ' }}
+                }
+              }
+            </div>
+            <p-button (onClick)="save(product.id)">
+              <p class="text-sm!">In den Warenkorb</p>
+            </p-button>
+          </div>
+        </div>
+      }
+    </div>
   </ng-template>
 </p-dataview>
