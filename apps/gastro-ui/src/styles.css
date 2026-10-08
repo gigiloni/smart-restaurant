@@ -308,17 +308,6 @@ p {
 .product-card:hover .product-photo img {
   transform: scale(1.035);
 }
-/* Keep the dessert and lemon syrup visible in wide cards and cart thumbnails. */
-img[src$='/dishes/panna-cotta-plain.jpg'] {
-  object-position: 50% 75%;
-}
-img[src$='/dishes/beer.jpg'] {
-  object-fit: contain;
-  background: #fff;
-}
-img[src$='/dishes/chianti.jpg'] {
-  object-position: 70% 57%;
-}
 .selected-pill {
   position: absolute;
   bottom: 0.75rem;
