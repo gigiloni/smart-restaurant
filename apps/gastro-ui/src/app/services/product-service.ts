@@ -16,6 +16,19 @@ export class ProductService {
   getProducts(): Observable<Product[]> {
     return this.http.get<Product[]>('/api/products')};
 
+  updateWarenkorbInSS(productId: number){
+    let warenkorbIdString = sessionStorage.getItem("warenkorb")
+    let warenkorbIdList = JSON.parse(warenkorbIdString ?? "");
+
+    if (warenkorbIdList instanceof Array) {
+      warenkorbIdList.push(productId);
+    } else {
+      warenkorbIdList = [productId];
+    }
+
+    sessionStorage.setItem("warenkorb", JSON.stringify(warenkorbIdList));
+  }
+
   getProductsById(productIdList: number[]) {
     this.http.post<Product[]>('api/products-by-id', {ids: productIdList}).subscribe({
       next: products => {

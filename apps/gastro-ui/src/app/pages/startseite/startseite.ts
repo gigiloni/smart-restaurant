@@ -11,6 +11,7 @@ import {FormsModule} from "@angular/forms";
   imports: [FloatLabel, Select, FormsModule,],
   templateUrl: './startseite.html',
   styleUrl: './startseite.css',
+  standalone: true
 })
 export class Startseite implements AfterViewInit {
   protected tableService = inject(TableService);
