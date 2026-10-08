@@ -39,7 +39,7 @@ export class Getraenke {
       });
   }
 
-  save(id: number): void {
-    console.log(id);
+  save(product: Product): void {
+    this.productService.productsInWarenkorb.update(products => [...products, product]);
   }
 }
