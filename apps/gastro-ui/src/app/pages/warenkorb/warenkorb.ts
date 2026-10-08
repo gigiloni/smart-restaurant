@@ -12,7 +12,6 @@ import {Image} from "primeng/image";
   selector: 'app-warenkorb',
   imports: [
     DataView,
-    Button,
     CurrencyPipe,
     Image
   ],

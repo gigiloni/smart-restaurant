@@ -39,7 +39,9 @@ export class Vorspeisen {
       });
   }
 
-  save(product: Product): void {
-    this.productService.productsInWarenkorb.update(products => [...products, product]);
+  save(productId: number): void {
+    // this.productService.productsInWarenkorb.update(products => [...products, product]);
+
+    this.productService.updateWarenkorbInSS(productId);
   }
 }

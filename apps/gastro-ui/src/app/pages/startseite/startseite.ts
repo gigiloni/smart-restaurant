@@ -11,6 +11,7 @@ import {FormsModule} from "@angular/forms";
   imports: [FloatLabel, Select, FormsModule,],
   templateUrl: './startseite.html',
   styleUrl: './startseite.css',
+  standalone: true
 })
 export class Startseite implements AfterViewInit {
   protected tableService = inject(TableService);
@@ -24,6 +25,6 @@ export class Startseite implements AfterViewInit {
   selectTable() {
     this.tableService.selectedTable.set(this.selectedTable);
 
-    this.router.navigateByUrl("menu");
+    this.router.navigateByUrl("speisekarte");
   }
 }
