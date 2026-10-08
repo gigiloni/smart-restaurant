@@ -18,13 +18,13 @@ export class ProductService {
 
   updateWarenkorbInSS(productId: number){
     let warenkorbIdString = sessionStorage.getItem("warenkorb")
-    let warenkorbIdList = JSON.parse(warenkorbIdString ?? "");
-
-    if (warenkorbIdList instanceof Array) {
-      warenkorbIdList.push(productId);
-    } else {
-      warenkorbIdList = [productId];
+    let warenkorbIdList: number[] | null;
+    if (warenkorbIdString != null) {
+      warenkorbIdList = JSON.parse(warenkorbIdString ?? "");
     }
+    else warenkorbIdList = [];
+
+    warenkorbIdList!.push(productId);
 
     sessionStorage.setItem("warenkorb", JSON.stringify(warenkorbIdList));
   }
