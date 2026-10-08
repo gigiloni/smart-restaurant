@@ -491,6 +491,9 @@ Each group of tests carries an ID such as `I-ORD` (integration, orders) or
 `I-ORD 08 takes payment once everything is served`. A failing test is then easy
 to find and to refer to.
 
+What the suite covers, how it was verified, what it found, and the list of
+every case: [`docs/backend-test-plan.md`](docs/backend-test-plan.md).
+
 ---
 
 ## API resources
