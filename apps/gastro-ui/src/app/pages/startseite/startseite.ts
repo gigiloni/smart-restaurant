@@ -24,6 +24,6 @@ export class Startseite implements AfterViewInit {
   selectTable() {
     this.tableService.selectedTable.set(this.selectedTable);
 
-    this.router.navigateByUrl("menu");
+    this.router.navigateByUrl("speisekarte");
   }
 }

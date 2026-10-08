@@ -13,7 +13,7 @@ export class ProductService {
   public productsInWarenkorb = signal<Product[]>([]);
 
   getProductsById(productIdList: number[]) {
-    this.http.post<Product[]>('/ProductsById', {ids: productIdList}).subscribe({
+    this.http.post<Product[]>('api/products-by-id', {ids: productIdList}).subscribe({
       next: products => {
         this.productsInWarenkorb.set(products);
       },

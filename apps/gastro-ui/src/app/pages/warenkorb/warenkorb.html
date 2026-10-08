@@ -7,7 +7,7 @@
         @for (product of products; track product.id) {
           <div class="grid grid-cols-5 rounded-2xl border">
             <div class="col-span-1">
-              <p-image [preview]="true" alt="Image" src="/dishes/{{ product.name }}.jpg" />
+              <p-image [preview]="true" alt="Image" src="/dishes/{{ product.title }}.jpg" />
             </div>
             <div class="col-span-4 grid grid-cols-1 gap-4 p-4">
               <div class="flex justify-between">
